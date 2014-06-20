@@ -45,16 +45,19 @@ typedef struct _GstWaylandKmsBufferPoolClass GstWaylandKmsBufferPoolClass;
 /* buffer meta */
 typedef struct _GstWlKmsMeta GstWlKmsMeta;
 
+GType gst_wl_kms_meta_api_get_type (void);
+#define GST_WL_KMS_META_API_TYPE  (gst_wl_kms_meta_api_get_type())
+
 const GstMetaInfo * gst_wl_kms_meta_get_info (void);
 #define GST_WL_KMS_META_INFO  (gst_wl_kms_meta_get_info())
 
-#define gst_buffer_get_wl_kms_meta(b) ((GstWlKmsMeta*)gst_buffer_get_meta((b),GST_WL_META_API_TYPE))
+#define gst_buffer_get_wl_kms_meta(b) ((GstWlKmsMeta*)gst_buffer_get_meta((b),GST_WL_KMS_META_API_TYPE))
 
 #define gst_wl_get_kms_bo_width(i, p) \
     ((((GST_VIDEO_INFO_PLANE_STRIDE (i, p) + 3) / 4 + 31) >> 5) << 5)
 
 struct _GstWlKmsMeta {
-  GstWlMeta base;
+  GstMeta meta;
   GPtrArray *kms_bo_array;
   GstWlDisplay *display;
 };

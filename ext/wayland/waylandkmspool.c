@@ -28,6 +28,7 @@
 #include "waylandkmspool.h"
 #include "wldisplay.h"
 #include "wlvideoformat.h"
+#include "wlbuffer.h"
 
 #include <fcntl.h>              /* O_CLOEXEC */
 #include "xf86drm.h"
@@ -44,6 +45,21 @@ GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
 
 #define GST_WAYLAND_BUFFER_POOL_NUM  3
+
+/* wl metadata */
+GType
+gst_wl_kms_meta_api_get_type (void)
+{
+  static volatile GType type;
+  static const gchar *tags[] =
+      { "memory", "size", "colorspace", "orientation", NULL };
+
+  if (g_once_init_enter (&type)) {
+    GType _type = gst_meta_api_type_register ("GstWlKmsMetaAPI", tags);
+    g_once_init_leave (&type, _type);
+  }
+  return type;
+}
 
 static void
 gst_wl_kms_meta_free (GstWlKmsMeta * meta, GstBuffer * buffer)
@@ -73,14 +89,6 @@ gst_wl_kms_meta_free (GstWlKmsMeta * meta, GstBuffer * buffer)
     g_ptr_array_unref (meta->kms_bo_array);
   }
 
-  g_mutex_lock (&meta->base.pool->buffers_map_mutex);
-  g_hash_table_remove (meta->base.pool->buffers_map, meta->base.wbuffer);
-  g_mutex_unlock (&meta->base.pool->buffers_map_mutex);
-
-  wl_buffer_destroy (meta->base.wbuffer);
-  wl_display_flush (meta->display->display);
-  wl_display_roundtrip (meta->display->display);
-
   g_object_unref (meta->display);
 }
 
@@ -91,7 +99,7 @@ gst_wl_kms_meta_get_info (void)
 
   if (g_once_init_enter (&wl_meta_info)) {
     const GstMetaInfo *meta =
-        gst_meta_register (GST_WL_META_API_TYPE, "GstWlKmsMeta",
+        gst_meta_register (GST_WL_KMS_META_API_TYPE, "GstWlKmsMeta",
         sizeof (GstWlKmsMeta), (GstMetaInitFunction) NULL,
         (GstMetaFreeFunction) gst_wl_kms_meta_free,
         (GstMetaTransformFunction) NULL);
@@ -225,36 +233,6 @@ gst_wayland_kms_buffer_pool_set_config (GstBufferPool * pool,
   return GST_BUFFER_POOL_CLASS (parent_class)->set_config (pool, config);
 }
 
-static void
-buffer_release (void *data, struct wl_buffer *wl_buffer)
-{
-  GstWaylandBufferPool *self = data;
-  GstBuffer *buffer;
-  GstWlMeta *meta;
-
-  g_mutex_lock (&self->buffers_map_mutex);
-  buffer = g_hash_table_lookup (self->buffers_map, wl_buffer);
-
-  GST_LOG_OBJECT (self, "wl_buffer::release (GstBuffer: %p)", buffer);
-
-  if (buffer) {
-    meta = gst_buffer_get_wl_meta (buffer);
-    if (meta->used_by_compositor) {
-      meta->used_by_compositor = FALSE;
-      /* unlock before unref because gst_wl_kms_meta_free() may be
-         called from here */
-      g_mutex_unlock (&self->buffers_map_mutex);
-      gst_buffer_unref (buffer);
-      return;
-    }
-  }
-  g_mutex_unlock (&self->buffers_map_mutex);
-}
-
-static const struct wl_buffer_listener buffer_listener = {
-  buffer_release
-};
-
 static gboolean
 gst_wayland_kms_buffer_pool_start (GstBufferPool * pool)
 {
@@ -292,8 +270,8 @@ gst_wayland_buffer_pool_create_mp_buffer (GstWaylandBufferPool * wpool,
     void *data[GST_VIDEO_MAX_PLANES], gint in_stride[GST_VIDEO_MAX_PLANES],
     gsize offset[GST_VIDEO_MAX_PLANES], GstVideoFormat format, gint n_planes)
 {
+  struct wl_buffer *wbuffer;
   GstWlKmsMeta *meta;
-  GstWlMeta *wmeta;
   GstVideoMeta *vmeta;
   size_t size, maxsize;
   gboolean is_dmabuf;
@@ -311,11 +289,6 @@ gst_wayland_buffer_pool_create_mp_buffer (GstWaylandBufferPool * wpool,
 
   meta->kms_bo_array = NULL;
 
-  wmeta = (GstWlMeta *) meta;
-
-  wmeta->pool = wpool;
-  wmeta->used_by_compositor = FALSE;
-
   /*
    * Wayland protocal APIs require that all (even unused) file descriptors be
    * valid. Instead of sending random dummy values, copy the valid fds from
@@ -326,7 +299,7 @@ gst_wayland_buffer_pool_create_mp_buffer (GstWaylandBufferPool * wpool,
   else if (n_planes == 2)
     dmabuf[2] = dmabuf[0];
 
-  wmeta->wbuffer =
+  wbuffer =
       wl_kms_create_mp_buffer (wpool->display->kms, width, height,
       gst_video_format_to_wayland_format (format), dmabuf[0], in_stride[0],
       dmabuf[1], in_stride[1], dmabuf[2], in_stride[2]);
@@ -347,19 +320,12 @@ gst_wayland_buffer_pool_create_mp_buffer (GstWaylandBufferPool * wpool,
     }
   }
 
-  /* configure listening to wl_buffer.release */
-  g_mutex_lock (&wpool->buffers_map_mutex);
-  g_hash_table_insert (wpool->buffers_map, wmeta->wbuffer, buffer);
-  g_mutex_unlock (&wpool->buffers_map_mutex);
+  gst_buffer_add_wl_buffer (buffer, wbuffer, wpool->display);
 
   vmeta = gst_buffer_add_video_meta_full (buffer, GST_VIDEO_FRAME_FLAG_NONE,
       format, width, height, n_planes, offset, in_stride);
   vmeta->map = gst_wayland_buffer_pool_video_meta_map;
   vmeta->unmap = gst_wayland_buffer_pool_video_meta_unmap;
-
-  wl_proxy_set_queue ((struct wl_proxy *) wmeta->wbuffer,
-      wpool->display->queue);
-  wl_buffer_add_listener (wmeta->wbuffer, &buffer_listener, wpool);
 
   return TRUE;
 }
