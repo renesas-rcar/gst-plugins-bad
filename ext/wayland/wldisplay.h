@@ -63,7 +63,9 @@ struct _GstWlDisplay
   gboolean own_display;
   GThread *thread;
   GstPoll *wl_fd_poll;
+  GMutex buffers_mutex;
   GHashTable *buffers;
+  gboolean shutting_down;
 };
 
 struct _GstWlDisplayClass
