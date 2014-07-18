@@ -95,6 +95,9 @@ static gboolean
 gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query);
 static gboolean gst_wayland_sink_render (GstBaseSink * bsink,
     GstBuffer * buffer);
+#ifdef HAVE_WAYLAND_KMS
+static gboolean gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query);
+#endif
 
 /* VideoOverlay interface */
 static void gst_wayland_sink_videooverlay_init (GstVideoOverlayInterface *
@@ -153,6 +156,9 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
   gstbasesink_class->propose_allocation =
       GST_DEBUG_FUNCPTR (gst_wayland_sink_propose_allocation);
   gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_wayland_sink_render);
+#ifdef HAVE_WAYLAND_KMS
+  gstbasesink_class->query = GST_DEBUG_FUNCPTR (gst_wayland_sink_query);
+#endif
 
   g_object_class_install_property (gobject_class, PROP_DISPLAY,
       g_param_spec_string ("display", "Wayland Display name", "Wayland "
@@ -498,6 +504,10 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   structure = gst_buffer_pool_get_config (newpool);
   gst_buffer_pool_config_set_params (structure, caps, info.size, 2, 0);
+#ifdef HAVE_WAYLAND_KMS
+  gst_structure_set (structure, "videosink_buffer_creation_request_supported",
+      G_TYPE_BOOLEAN, TRUE, NULL);
+#endif
   gst_buffer_pool_config_set_allocator (structure, NULL, &params);
   if (!gst_buffer_pool_set_config (newpool, structure))
     goto config_failed;
@@ -583,6 +593,10 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
 
     config = gst_buffer_pool_get_config (pool);
     gst_buffer_pool_config_set_params (config, caps, size, 2, 0);
+#ifdef HAVE_WAYLAND_KMS
+    gst_structure_set (config, "videosink_buffer_creation_request_supported",
+        G_TYPE_BOOLEAN, TRUE, NULL);
+#endif
     if (!gst_buffer_pool_set_config (pool, config))
       goto config_failed;
   }
@@ -902,6 +916,105 @@ gst_wayland_sink_end_geometry_change (GstWaylandVideo * video)
   wl_subsurface_set_desync (sink->window->subsurface);
   g_mutex_unlock (&sink->render_lock);
 }
+
+#ifdef HAVE_WAYLAND_KMS
+static gboolean
+gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query)
+{
+  GstWaylandSink *sink = GST_WAYLAND_SINK (bsink);
+  gboolean ret = FALSE;
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_CUSTOM:
+    {
+      GstWaylandBufferPool *wpool;
+      const GstStructure *structure;
+      GstStructure *str_writable;
+      gint dmabuf[GST_VIDEO_MAX_PLANES];
+      GstAllocator *allocator;
+      gint width, height;
+      gint stride[GST_VIDEO_MAX_PLANES];
+      const gchar *str;
+      const GValue *p_val;
+      GValue val = { 0, };
+      GstVideoFormat format;
+      GstBuffer *buffer;
+      GArray *dmabuf_array;
+      GArray *stride_array;
+      gint n_planes;
+      gint i;
+
+      wpool = GST_WAYLAND_BUFFER_POOL_CAST (sink->pool);
+
+      structure = gst_query_get_structure (query);
+      if (structure == NULL
+          || !gst_structure_has_name (structure,
+              "videosink_buffer_creation_request")) {
+        GST_LOG_OBJECT (sink, "not a videosink_buffer_creation_request query");
+        break;
+      }
+
+      GST_DEBUG_OBJECT (sink,
+          "received a videosink_buffer_creation_request query");
+
+      gst_structure_get (structure, "width", G_TYPE_INT, &width,
+          "height", G_TYPE_INT, &height, "stride", G_TYPE_ARRAY, &stride_array,
+          "dmabuf", G_TYPE_ARRAY, &dmabuf_array,
+          "n_planes", G_TYPE_INT, &n_planes,
+          "allocator", G_TYPE_POINTER, &p_val,
+          "format", G_TYPE_STRING, &str, NULL);
+
+      allocator = (GstAllocator *) g_value_get_pointer (p_val);
+      if (allocator == NULL) {
+        GST_WARNING_OBJECT (sink,
+            "an invalid allocator in videosink_buffer_creation_request query");
+        break;
+      }
+
+      format = gst_video_format_from_string (str);
+      if (format == GST_VIDEO_FORMAT_UNKNOWN) {
+        GST_WARNING_OBJECT (sink,
+            "invalid color format in videosink_buffer_creation_request query");
+        break;
+      }
+
+      for (i = 0; i < n_planes; i++) {
+        dmabuf[i] = g_array_index (dmabuf_array, gint, i);
+        stride[i] = g_array_index (stride_array, gint, i);
+        GST_DEBUG_OBJECT (sink, "plane:%d dmabuf:%d stride:%d\n", i, dmabuf[i],
+            stride[i]);
+      }
+
+      GST_DEBUG_OBJECT (sink,
+          "videosink_buffer_creation_request query param: width:%d height:%d allocator:%p format:%s",
+          width, height, allocator, str);
+
+      buffer = gst_wayland_buffer_pool_create_buffer_from_dmabuf (wpool,
+          dmabuf, allocator, width, height, stride, format, n_planes);
+      if (buffer == NULL) {
+        GST_WARNING_OBJECT (sink,
+            "failed to create a buffer from videosink_buffer_creation_request query");
+        break;
+      }
+
+      g_value_init (&val, GST_TYPE_BUFFER);
+      gst_value_set_buffer (&val, buffer);
+      gst_buffer_unref (buffer);
+
+      str_writable = gst_query_writable_structure (query);
+      gst_structure_set_value (str_writable, "buffer", &val);
+
+      ret = TRUE;
+      break;
+    }
+    default:
+      ret = GST_BASE_SINK_CLASS (parent_class)->query (bsink, query);
+      break;
+  }
+
+  return ret;
+}
+#endif
 
 static gboolean
 plugin_init (GstPlugin * plugin)
