@@ -596,6 +596,8 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
   GstBuffer *to_render;
   GstWlBuffer *wlbuffer;
   GstFlowReturn ret = GST_FLOW_OK;
+  gint redraw_flag;
+  guint retry = 1;
 
   g_mutex_lock (&sink->render_lock);
 
@@ -616,8 +618,17 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
   }
 
   /* drop buffers until we get a frame callback */
-  if (g_atomic_int_get (&sink->redraw_pending) == TRUE)
+  redraw_flag = g_atomic_int_get (&sink->redraw_pending);
+  while (redraw_flag == TRUE && retry > 0) {
+    wl_display_roundtrip (sink->display->display);
+    redraw_flag = g_atomic_int_get (&sink->redraw_pending);
+    retry--;
+  }
+  if (redraw_flag == TRUE) {
+    GST_LOG_OBJECT (sink,
+        "We have not got the previous frame callback yet, dropping a frame");
     goto done;
+  }
 
   /* make sure that the application has called set_render_rectangle() */
   if (G_UNLIKELY (sink->window->render_rectangle.w == 0))
