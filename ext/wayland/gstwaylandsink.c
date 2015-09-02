@@ -339,18 +339,18 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
 
   switch (transition) {
     case GST_STATE_CHANGE_PAUSED_TO_READY:
-      gst_buffer_replace (&sink->last_buffer, NULL);
       if (sink->window) {
-        if (gst_wl_window_is_toplevel (sink->window)) {
+        /* remove buffer from surface, show nothing */
+        wl_surface_attach (sink->window->surface, NULL, 0, 0);
+        wl_surface_damage (sink->window->surface, 0, 0,
+            sink->window->surface_width, sink->window->surface_height);
+        wl_surface_commit (sink->window->surface);
+        wl_display_flush (sink->display->display);
+        wl_display_roundtrip (sink->display->display);
+        if (gst_wl_window_is_toplevel (sink->window))
           g_clear_object (&sink->window);
-        } else {
-          /* remove buffer from surface, show nothing */
-          wl_surface_attach (sink->window->surface, NULL, 0, 0);
-          wl_surface_damage (sink->window->surface, 0, 0,
-              sink->window->surface_width, sink->window->surface_height);
-          wl_surface_commit (sink->window->surface);
-          wl_display_flush (sink->display->display);
-        }
+      } else {
+        gst_buffer_replace (&sink->last_buffer, NULL);
       }
       break;
     case GST_STATE_CHANGE_READY_TO_NULL:
