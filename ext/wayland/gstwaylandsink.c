@@ -424,7 +424,7 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
     GValue value = G_VALUE_INIT;
     GArray *formats;
     gint i;
-    enum wl_shm_format fmt;
+    guint fmt;
 
     g_value_init (&list, GST_TYPE_LIST);
     g_value_init (&value, G_TYPE_STRING);
@@ -462,7 +462,7 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   GstWaylandSink *sink;
   GstBufferPool *newpool;
   GstVideoInfo info;
-  enum wl_shm_format format;
+  guint format;
   GArray *formats;
   gint i;
   GstStructure *structure;

@@ -32,7 +32,7 @@ GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 
 typedef struct
 {
-  enum wl_shm_format wl_format;
+  guint wl_format;
   GstVideoFormat gst_format;
 } wl_VideoFormat;
 
@@ -77,7 +77,7 @@ static const wl_VideoFormat formats[] = {
   {WL_SHM_FORMAT_YUV444, GST_VIDEO_FORMAT_v308},
 };
 
-enum wl_shm_format
+guint
 gst_video_format_to_wayland_format (GstVideoFormat format)
 {
   guint i;
@@ -91,7 +91,7 @@ gst_video_format_to_wayland_format (GstVideoFormat format)
 }
 
 GstVideoFormat
-gst_wayland_format_to_video_format (enum wl_shm_format wl_format)
+gst_wayland_format_to_video_format (guint wl_format)
 {
   guint i;
 
@@ -104,7 +104,7 @@ gst_wayland_format_to_video_format (enum wl_shm_format wl_format)
 }
 
 const gchar *
-gst_wayland_format_to_string (enum wl_shm_format wl_format)
+gst_wayland_format_to_string (guint wl_format)
 {
   return gst_video_format_to_string
       (gst_wayland_format_to_video_format (wl_format));
