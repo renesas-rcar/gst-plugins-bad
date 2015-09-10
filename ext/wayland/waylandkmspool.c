@@ -43,6 +43,8 @@
 GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
 
+#define GST_WAYLAND_BUFFER_POOL_NUM  3
+
 static void
 gst_wl_kms_meta_free (GstWlKmsMeta * meta, GstBuffer * buffer)
 {
@@ -93,6 +95,8 @@ static gboolean gst_wayland_kms_buffer_pool_stop (GstBufferPool * pool);
 static gboolean gst_wayland_kms_buffer_pool_start (GstBufferPool * pool);
 static GstFlowReturn gst_wayland_kms_buffer_pool_alloc (GstBufferPool * pool,
     GstBuffer ** buffer, GstBufferPoolAcquireParams * params);
+static gboolean gst_wayland_kms_buffer_pool_set_config (GstBufferPool * pool,
+    GstStructure * config);
 
 #define gst_wayland_kms_buffer_pool_parent_class parent_class
 G_DEFINE_TYPE (GstWaylandKmsBufferPool, gst_wayland_kms_buffer_pool,
@@ -105,6 +109,7 @@ gst_wayland_kms_buffer_pool_class_init (GstWaylandKmsBufferPoolClass * klass)
   gstbufferpool_class->stop = gst_wayland_kms_buffer_pool_stop;
   gstbufferpool_class->start = gst_wayland_kms_buffer_pool_start;
   gstbufferpool_class->alloc_buffer = gst_wayland_kms_buffer_pool_alloc;
+  gstbufferpool_class->set_config = gst_wayland_kms_buffer_pool_set_config;
 }
 
 static void
@@ -160,6 +165,22 @@ gst_wayland_buffer_pool_video_meta_unmap (GstVideoMeta * meta, guint plane,
   gst_memory_unref (mem);
 
   return TRUE;
+}
+
+static gboolean
+gst_wayland_kms_buffer_pool_set_config (GstBufferPool * pool,
+    GstStructure * config)
+{
+  GstCaps *caps;
+  guint size;
+
+/* Always set the buffer pool min/max buffers to the defined value */
+  if (gst_buffer_pool_config_get_params (config, &caps, &size, NULL, NULL)) {
+    gst_buffer_pool_config_set_params (config, caps, size,
+        GST_WAYLAND_BUFFER_POOL_NUM, GST_WAYLAND_BUFFER_POOL_NUM);
+  }
+
+  return GST_BUFFER_POOL_CLASS (parent_class)->set_config (pool, config);
 }
 
 static void
