@@ -44,6 +44,7 @@
 #include "gstwaylandsink.h"
 #include "wlvideoformat.h"
 #include "waylandpool.h"
+#include "waylandkmspool.h"
 
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>

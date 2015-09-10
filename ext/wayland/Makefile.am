@@ -26,6 +26,14 @@ noinst_HEADERS = \
 	wlvideoformat.h \
 	scaler-client-protocol.h
 
+if USE_WAYLAND_KMS
+libgstwaylandsink_la_SOURCES += waylandkmspool.c
+libgstwaylandsink_la_CFLAGS += $(WAYLAND_KMS_CFLAGS)
+libgstwaylandsink_la_LIBADD += $(WAYLAND_KMS_LIBS) \
+				-lgstallocators-$(GST_API_VERSION)
+noinst_HEADERS += waylandkmspool.h
+endif
+
 EXTRA_DIST = scaler.xml
 CLEANFILES = scaler-protocol.c scaler-client-protocol.h
 

@@ -1957,6 +1957,11 @@ AG_GST_CHECK_FEATURE(WAYLAND, [wayland sink], wayland , [
   PKG_CHECK_MODULES(WAYLAND, wayland-client >= 1.4.0 wayland-scanner, [
     HAVE_WAYLAND="yes" ], [ HAVE_WAYLAND="no"
   ])
+  PKG_CHECK_MODULES(WAYLAND_KMS, libdrm libkms wayland-kms,
+    [HAVE_WAYLAND_KMS="yes"
+        AC_DEFINE(HAVE_WAYLAND_KMS, 1, [Define if wayland KMS protocol is available])],
+       [HAVE_WAYLAND_KMS="no"])
+  AM_CONDITIONAL(USE_WAYLAND_KMS, test "x$HAVE_WAYLAND_KMS" = "xyes")
 ])
 
 AC_PATH_PROG([wayland_scanner], [wayland-scanner])

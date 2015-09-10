@@ -26,6 +26,9 @@
 #include "waylandpool.h"
 #include "wldisplay.h"
 #include "wlvideoformat.h"
+#ifdef HAVE_WAYLAND_KMS
+#include "waylandkmspool.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -378,7 +381,11 @@ gst_wayland_buffer_pool_new (GstWlDisplay * display)
   GstWaylandBufferPool *pool;
 
   g_return_val_if_fail (GST_IS_WL_DISPLAY (display), NULL);
+#ifdef HAVE_WAYLAND_KMS
+  pool = g_object_new (GST_TYPE_WAYLAND_KMS_BUFFER_POOL, NULL);
+#else
   pool = g_object_new (GST_TYPE_WAYLAND_BUFFER_POOL, NULL);
+#endif
   pool->display = g_object_ref (display);
 
   return GST_BUFFER_POOL_CAST (pool);

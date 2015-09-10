@@ -25,6 +25,10 @@
 #include <wayland-client.h>
 #include "scaler-client-protocol.h"
 
+#ifdef HAVE_WAYLAND_KMS
+#include "wayland-kms-client-protocol.h"
+#endif
+
 G_BEGIN_DECLS
 
 #define GST_TYPE_WL_DISPLAY                  (gst_wl_display_get_type ())
@@ -58,6 +62,11 @@ struct _GstWlDisplay
   gboolean own_display;
   GThread *thread;
   GstPoll *wl_fd_poll;
+#ifdef HAVE_WAYLAND_KMS
+  struct wl_kms *kms;
+  gint drm_fd;
+  gboolean authenticated;
+#endif
 };
 
 struct _GstWlDisplayClass

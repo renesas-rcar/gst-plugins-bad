@@ -26,6 +26,17 @@
 
 #include <errno.h>
 
+#ifdef HAVE_WAYLAND_KMS
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+
+#include "drm.h"
+#include "xf86drm.h"
+
+#include "wlvideoformat.h"
+#endif
+
 GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
 
@@ -45,6 +56,10 @@ gst_wl_display_init (GstWlDisplay * self)
 {
   self->formats = g_array_new (FALSE, FALSE, sizeof (uint32_t));
   self->wl_fd_poll = gst_poll_new (TRUE);
+
+#ifdef HAVE_WAYLAND_KMS
+  self->drm_fd = -1;
+#endif
 }
 
 static void
@@ -59,6 +74,14 @@ gst_wl_display_finalize (GObject * gobject)
 
   g_array_unref (self->formats);
   gst_poll_free (self->wl_fd_poll);
+
+#ifdef HAVE_WAYLAND_KMS
+  if (self->drm_fd >= 0)
+    close (self->drm_fd);
+
+  if (self->kms)
+    wl_kms_destroy (self->kms);
+#endif
 
   if (self->shm)
     wl_shm_destroy (self->shm);
@@ -117,6 +140,57 @@ gst_wl_display_roundtrip (GstWlDisplay * self)
   return ret;
 }
 
+#ifdef HAVE_WAYLAND_KMS
+static void
+kms_device (void *data, struct wl_kms *kms, const char *device)
+{
+  GstWlDisplay *self = data;
+  drm_magic_t magic;
+
+  if ((self->drm_fd = open (device, O_RDWR | O_CLOEXEC)) < 0) {
+    GST_ERROR ("%s open failed (%s)", device, strerror (errno));
+    return;
+  }
+
+  drmGetMagic (self->drm_fd, &magic);
+  wl_kms_authenticate (self->kms, magic);
+}
+
+static void
+kms_format (void *data, struct wl_kms *kms, uint32_t format)
+{
+  GstWlDisplay *self = data;
+  GstVideoFormat fmt;
+
+  fmt = gst_wayland_format_to_video_format (format);
+  if (fmt == GST_VIDEO_FORMAT_UNKNOWN) {
+    GST_WARNING ("waylandsink doesn't support %" GST_FOURCC_FORMAT,
+        GST_FOURCC_ARGS (format));
+    return;
+  }
+
+  g_array_append_val (self->formats, format);
+
+  GST_DEBUG ("%" GST_FOURCC_FORMAT " was added to the supported formats list",
+      GST_FOURCC_ARGS (format));
+}
+
+static void
+kms_handle_authenticated (void *data, struct wl_kms *kms)
+{
+  GstWlDisplay *self = data;
+
+  GST_DEBUG ("wl_kms has been authenticated");
+
+  self->authenticated = TRUE;
+}
+
+static const struct wl_kms_listener kms_listenter = {
+  .device = kms_device,
+  .format = kms_format,
+  .authenticated = kms_handle_authenticated
+};
+#endif /* HAVE_WAYLAND_KMS */
 static void
 shm_format (void *data, struct wl_shm *wl_shm, uint32_t format)
 {
@@ -143,6 +217,11 @@ registry_handle_global (void *data, struct wl_registry *registry,
         wl_registry_bind (registry, id, &wl_subcompositor_interface, 1);
   } else if (g_strcmp0 (interface, "wl_shell") == 0) {
     self->shell = wl_registry_bind (registry, id, &wl_shell_interface, 1);
+#ifdef HAVE_WAYLAND_KMS
+  } else if (strcmp (interface, "wl_kms") == 0) {
+    self->kms = wl_registry_bind (registry, id, &wl_kms_interface, version);
+    wl_kms_add_listener (self->kms, &kms_listenter, self);
+#endif
   } else if (g_strcmp0 (interface, "wl_shm") == 0) {
     self->shm = wl_registry_bind (registry, id, &wl_shm_interface, 1);
     wl_shm_add_listener (self->shm, &shm_listener, self);
@@ -250,6 +329,16 @@ gst_wl_display_new_existing (struct wl_display * display,
   VERIFY_INTERFACE_EXISTS (compositor, "wl_compositor");
   VERIFY_INTERFACE_EXISTS (subcompositor, "wl_subcompositor");
   VERIFY_INTERFACE_EXISTS (shell, "wl_shell");
+#ifdef HAVE_WAYLAND_KMS
+  VERIFY_INTERFACE_EXISTS (kms, "wl_kms");
+
+  if (self->authenticated) {
+    g_set_error (error, g_quark_from_static_string ("GstWlDisplay"), 0,
+        "wl_kms authentication failed...");
+    g_object_unref (self);
+    return NULL;
+  }
+#endif
   VERIFY_INTERFACE_EXISTS (shm, "wl_shm");
   VERIFY_INTERFACE_EXISTS (scaler, "wl_scaler");
 
