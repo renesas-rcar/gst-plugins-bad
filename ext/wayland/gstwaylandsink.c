@@ -691,6 +691,10 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
 
   GST_LOG_OBJECT (sink, "render buffer %p", buffer);
 
+  /* If this buffer is already being displayed, skip it */
+  if (buffer == sink->last_buffer)
+    goto done;
+
   if (G_UNLIKELY (!sink->window)) {
     /* ask for window handle. Unlock render_lock while doing that because
      * set_window_handle & friends will lock it in this context */
