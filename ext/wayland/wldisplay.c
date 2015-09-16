@@ -221,10 +221,11 @@ registry_handle_global (void *data, struct wl_registry *registry,
   } else if (strcmp (interface, "wl_kms") == 0) {
     self->kms = wl_registry_bind (registry, id, &wl_kms_interface, version);
     wl_kms_add_listener (self->kms, &kms_listenter, self);
-#endif
+#else
   } else if (g_strcmp0 (interface, "wl_shm") == 0) {
     self->shm = wl_registry_bind (registry, id, &wl_shm_interface, 1);
     wl_shm_add_listener (self->shm, &shm_listener, self);
+#endif
   } else if (g_strcmp0 (interface, "wl_scaler") == 0) {
     self->scaler = wl_registry_bind (registry, id, &wl_scaler_interface, 2);
   }
@@ -338,8 +339,9 @@ gst_wl_display_new_existing (struct wl_display * display,
     g_object_unref (self);
     return NULL;
   }
-#endif
+#else
   VERIFY_INTERFACE_EXISTS (shm, "wl_shm");
+#endif
   VERIFY_INTERFACE_EXISTS (scaler, "wl_scaler");
 
 #undef VERIFY_INTERFACE_EXISTS
