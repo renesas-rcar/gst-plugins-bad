@@ -56,6 +56,7 @@ const GstMetaInfo * gst_wl_kms_meta_get_info (void);
 struct _GstWlKmsMeta {
   GstWlMeta base;
   GPtrArray *kms_bo_array;
+  GstWlDisplay *display;
 };
 
 /* buffer pool */

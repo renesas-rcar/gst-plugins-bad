@@ -71,6 +71,8 @@ gst_wl_kms_meta_free (GstWlKmsMeta * meta, GstBuffer * buffer)
     g_ptr_array_unref (meta->kms_bo_array);
   }
   wl_buffer_destroy (meta->base.wbuffer);
+  if (meta->display)
+    g_object_unref (meta->display);
 }
 
 const GstMetaInfo *
@@ -348,6 +350,7 @@ gst_wayland_buffer_pool_create_buffer_from_dmabuf (GstWaylandBufferPool * wpool,
   wmeta = gst_buffer_get_wl_kms_meta (buffer);
 
   wmeta->kms_bo_array = NULL;
+  wmeta->display = g_object_ref (wpool->display);
 
   /* To avoid deattaching meta data when a buffer returns to the buffer pool */
   GST_META_FLAG_SET (wmeta, GST_META_FLAG_POOLED);
@@ -444,6 +447,8 @@ gst_wayland_kms_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
   GST_DEBUG_OBJECT (self, "Allocating wl_kms buffer of size %" G_GSSIZE_FORMAT
       " (%d x %d), format %s", GST_VIDEO_INFO_SIZE (&self->info), width, height,
       gst_wayland_format_to_string (format));
+
+  meta->display = NULL;
 
   return GST_FLOW_OK;
 }
