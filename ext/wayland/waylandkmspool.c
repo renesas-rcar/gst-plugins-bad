@@ -70,6 +70,11 @@ gst_wl_kms_meta_free (GstWlKmsMeta * meta, GstBuffer * buffer)
     }
     g_ptr_array_unref (meta->kms_bo_array);
   }
+
+  g_mutex_lock (&meta->base.pool->buffers_map_mutex);
+  g_hash_table_remove (meta->base.pool->buffers_map, meta->base.wbuffer);
+  g_mutex_unlock (&meta->base.pool->buffers_map_mutex);
+
   wl_buffer_destroy (meta->base.wbuffer);
   if (meta->display)
     g_object_unref (meta->display);
@@ -201,7 +206,8 @@ buffer_release (void *data, struct wl_buffer *wl_buffer)
     meta = gst_buffer_get_wl_meta (buffer);
     if (meta->used_by_compositor) {
       meta->used_by_compositor = FALSE;
-      /* unlock before unref because stop() may be called from here */
+      /* unlock before unref because gst_wl_kms_meta_free() may be
+         called from here */
       g_mutex_unlock (&self->buffers_map_mutex);
       gst_buffer_unref (buffer);
       return;
@@ -238,12 +244,6 @@ gst_wayland_kms_buffer_pool_stop (GstBufferPool * pool)
 
   if (self->kms_drv)
     kms_destroy (&self->kms_drv);
-
-  /* all buffers are about to be destroyed;
-   * we should no longer do anything with them */
-  g_mutex_lock (&self->base.buffers_map_mutex);
-  g_hash_table_remove_all (self->base.buffers_map);
-  g_mutex_unlock (&self->base.buffers_map_mutex);
 
   return
       GST_BUFFER_POOL_CLASS (g_type_class_peek_parent (parent_class))->stop
