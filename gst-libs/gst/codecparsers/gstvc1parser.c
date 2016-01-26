@@ -1730,7 +1730,7 @@ gst_vc1_parse_sequence_layer (const guint8 * data, gsize size,
     GstVC1SeqLayer * seqlayer)
 {
   guint32 tmp;
-  guint8 tmp8;
+  guint8 tmp8 = 0;
   guint8 structA[8] = { 0, };
   guint8 structB[12] = { 0, };
   GstBitReader br;
