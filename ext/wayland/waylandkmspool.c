@@ -76,8 +76,10 @@ gst_wl_kms_meta_free (GstWlKmsMeta * meta, GstBuffer * buffer)
   g_mutex_unlock (&meta->base.pool->buffers_map_mutex);
 
   wl_buffer_destroy (meta->base.wbuffer);
-  if (meta->display)
-    g_object_unref (meta->display);
+  wl_display_flush (meta->display->display);
+  wl_display_roundtrip (meta->display->display);
+
+  g_object_unref (meta->display);
 }
 
 const GstMetaInfo *
@@ -448,7 +450,7 @@ gst_wayland_kms_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
       " (%d x %d), format %s", GST_VIDEO_INFO_SIZE (&self->info), width, height,
       gst_wayland_format_to_string (format));
 
-  meta->display = NULL;
+  meta->display = g_object_ref (self->display);
 
   return GST_FLOW_OK;
 }
