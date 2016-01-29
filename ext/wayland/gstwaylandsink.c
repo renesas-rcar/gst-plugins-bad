@@ -328,6 +328,13 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_NULL_TO_READY:
       if (!gst_wayland_sink_find_display (sink))
         return GST_STATE_CHANGE_FAILURE;
+
+      /* the event queue specific for wl_surface_frame events */
+      sink->frame_queue = wl_display_create_queue (sink->display->display);
+      if (!sink->frame_queue) {
+        GST_ERROR_OBJECT (sink, "failed to create wl_event_queue");
+        return GST_STATE_CHANGE_FAILURE;
+      }
       break;
     default:
       break;
@@ -383,6 +390,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
           gst_wayland_compositor_release_all_buffers (GST_WAYLAND_BUFFER_POOL
               (sink->pool));
         }
+        wl_event_queue_destroy (sink->frame_queue);
         g_clear_object (&sink->display);
         g_clear_object (&sink->pool);
       }
@@ -661,6 +669,7 @@ render_last_buffer (GstWaylandSink * sink)
 
   g_atomic_int_set (&sink->redraw_pending, TRUE);
   callback = wl_surface_frame (surface);
+  wl_proxy_set_queue ((struct wl_proxy *) callback, sink->frame_queue);
   wl_callback_add_listener (callback, &frame_callback_listener, sink);
 
   /* Here we essentially add a reference to the buffer. This represents
@@ -713,10 +722,12 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
     sink->video_info_changed = FALSE;
   }
 
+  wl_display_dispatch_queue_pending (sink->display->display, sink->frame_queue);
+
   /* drop buffers until we get a frame callback */
   redraw_flag = g_atomic_int_get (&sink->redraw_pending);
   while (redraw_flag == TRUE && retry > 0) {
-    wl_display_roundtrip (sink->display->display);
+    wl_display_dispatch_queue (sink->display->display, sink->frame_queue);
     redraw_flag = g_atomic_int_get (&sink->redraw_pending);
     retry--;
   }
