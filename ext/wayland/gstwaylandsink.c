@@ -312,6 +312,13 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
     case GST_STATE_CHANGE_NULL_TO_READY:
       if (!gst_wayland_sink_find_display (sink))
         return GST_STATE_CHANGE_FAILURE;
+
+      /* the event queue specific for wl_surface_frame events */
+      sink->frame_queue = wl_display_create_queue (sink->display->display);
+      if (!sink->frame_queue) {
+        GST_ERROR_OBJECT (sink, "failed to create wl_event_queue");
+        return GST_STATE_CHANGE_FAILURE;
+      }
       break;
     default:
       break;
@@ -346,6 +353,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
        * restarted (GstVideoOverlay behaves like that in other sinks)
        */
       if (sink->display && !sink->window) {     /* -> the window was toplevel */
+        wl_event_queue_destroy (sink->frame_queue);
         g_clear_object (&sink->display);
       }
       g_mutex_unlock (&sink->display_lock);
@@ -580,6 +588,7 @@ render_last_buffer (GstWaylandSink * sink)
 
   g_atomic_int_set (&sink->redraw_pending, TRUE);
   callback = wl_surface_frame (surface);
+  wl_proxy_set_queue ((struct wl_proxy *) callback, sink->frame_queue);
   wl_callback_add_listener (callback, &frame_callback_listener, sink);
 
   if (G_UNLIKELY (sink->video_info_changed)) {
@@ -617,10 +626,12 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
     }
   }
 
+  wl_display_dispatch_queue_pending (sink->display->display, sink->frame_queue);
+
   /* drop buffers until we get a frame callback */
   redraw_flag = g_atomic_int_get (&sink->redraw_pending);
   while (redraw_flag == TRUE && retry > 0) {
-    wl_display_roundtrip (sink->display->display);
+    wl_display_dispatch_queue (sink->display->display, sink->frame_queue);
     redraw_flag = g_atomic_int_get (&sink->redraw_pending);
     retry--;
   }
