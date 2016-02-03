@@ -299,13 +299,13 @@ gst_wayland_buffer_pool_create_mp_buffer (GstWaylandBufferPool * wpool,
       dmabuf[1], in_stride[1], dmabuf[2], in_stride[2]);
 
   for (i = 0; i < n_planes; i++) {
+    size = GST_VIDEO_INFO_COMP_STRIDE (&wpool->info, i) *
+        GST_VIDEO_INFO_COMP_HEIGHT (&wpool->info, i);
+
     if (is_dmabuf) {
       gst_buffer_append_memory (buffer,
-          gst_dmabuf_allocator_alloc (allocator, dmabuf[i], 0));
+          gst_dmabuf_allocator_alloc (allocator, dmabuf[i], size));
     } else {
-      size = GST_VIDEO_INFO_COMP_STRIDE (&wpool->info, i) *
-          GST_VIDEO_INFO_COMP_HEIGHT (&wpool->info, i);
-
       maxsize = in_stride[i] * height;
 
       gst_buffer_append_memory (buffer,
