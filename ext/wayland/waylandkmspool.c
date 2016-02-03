@@ -263,7 +263,15 @@ gst_wayland_buffer_pool_create_mp_buffer (GstWaylandBufferPool * wpool,
   GstWlMeta *wmeta;
   GstVideoMeta *vmeta;
   size_t size, maxsize;
+  gboolean is_dmabuf;
   gint i;
+
+  is_dmabuf = (allocator &&
+      g_strcmp0 (allocator->mem_type, GST_ALLOCATOR_DMABUF) == 0);
+  if (!is_dmabuf && data == NULL) {
+    GST_WARNING_OBJECT (wpool, "couldn't get data pointer");
+    return FALSE;
+  }
 
   meta = (GstWlKmsMeta *) gst_buffer_add_meta
       (buffer, GST_WL_KMS_META_INFO, NULL);
@@ -290,17 +298,11 @@ gst_wayland_buffer_pool_create_mp_buffer (GstWaylandBufferPool * wpool,
       gst_video_format_to_wayland_format (format), dmabuf[0], in_stride[0],
       dmabuf[1], in_stride[1], dmabuf[2], in_stride[2]);
 
-  if (allocator && g_strcmp0 (allocator->mem_type, GST_ALLOCATOR_DMABUF) == 0) {
-    for (i = 0; i < n_planes; i++)
+  for (i = 0; i < n_planes; i++) {
+    if (is_dmabuf) {
       gst_buffer_append_memory (buffer,
           gst_dmabuf_allocator_alloc (allocator, dmabuf[i], 0));
-  } else {
-    if (data == NULL) {
-      GST_WARNING_OBJECT (wpool, "couldn't get data pointer");
-      return FALSE;
-    }
-
-    for (i = 0; i < n_planes; i++) {
+    } else {
       size = GST_VIDEO_INFO_COMP_STRIDE (&wpool->info, i) *
           GST_VIDEO_INFO_COMP_HEIGHT (&wpool->info, i);
 
