@@ -562,7 +562,12 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   GstCaps *caps;
   guint size;
   gboolean need_pool;
+#ifdef HAVE_WAYLAND_KMS
+  GstAllocator *allocator;
+#endif
+  GstAllocationParams params;
 
+  gst_allocation_params_init (&params);
   gst_query_parse_allocation (query, &caps, &need_pool);
 
   if (caps == NULL)
@@ -603,12 +608,24 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
 #ifdef HAVE_WAYLAND_KMS
     gst_structure_set (config, "videosink_buffer_creation_request_supported",
         G_TYPE_BOOLEAN, TRUE, NULL);
+    gst_buffer_pool_config_set_allocator (config, NULL, &params);
 #endif
     if (!gst_buffer_pool_set_config (pool, config))
       goto config_failed;
   }
   if (pool) {
     gst_query_add_allocation_pool (query, pool, size, 2, 0);
+    /*
+     * Add the default allocator for the plugins that can't use dmabuf
+     * descriptors.
+     */
+    gst_query_add_allocation_param (query, gst_allocator_find (NULL), &params);
+
+#ifdef HAVE_WAYLAND_KMS
+    allocator = gst_dmabuf_allocator_new ();
+    gst_query_add_allocation_param (query, allocator, &params);
+    gst_object_unref (allocator);
+#endif
     gst_object_unref (pool);
   }
 

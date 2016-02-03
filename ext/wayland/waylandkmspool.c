@@ -100,6 +100,7 @@ gst_wl_kms_meta_get_info (void)
 
 
 /* bufferpool */
+static void gst_wayland_kms_buffer_pool_finalize (GObject * object);
 static gboolean gst_wayland_kms_buffer_pool_stop (GstBufferPool * pool);
 static gboolean gst_wayland_kms_buffer_pool_start (GstBufferPool * pool);
 static GstFlowReturn gst_wayland_kms_buffer_pool_alloc (GstBufferPool * pool,
@@ -114,7 +115,11 @@ G_DEFINE_TYPE (GstWaylandKmsBufferPool, gst_wayland_kms_buffer_pool,
 static void
 gst_wayland_kms_buffer_pool_class_init (GstWaylandKmsBufferPoolClass * klass)
 {
+  GObjectClass *gobject_class = (GObjectClass *) klass;
   GstBufferPoolClass *gstbufferpool_class = (GstBufferPoolClass *) klass;
+
+  gobject_class->finalize = gst_wayland_kms_buffer_pool_finalize;
+
   gstbufferpool_class->stop = gst_wayland_kms_buffer_pool_stop;
   gstbufferpool_class->start = gst_wayland_kms_buffer_pool_start;
   gstbufferpool_class->alloc_buffer = gst_wayland_kms_buffer_pool_alloc;
@@ -126,6 +131,18 @@ gst_wayland_kms_buffer_pool_init (GstWaylandKmsBufferPool * self)
 {
   self->kms_drv = NULL;
   self->allocator = NULL;
+}
+
+static void
+gst_wayland_kms_buffer_pool_finalize (GObject * object)
+{
+  GstWaylandKmsBufferPool *self = GST_WAYLAND_KMS_BUFFER_POOL_CAST (object);
+
+  if (self->allocator)
+    gst_object_unref (self->allocator);
+  self->allocator = NULL;
+
+  G_OBJECT_CLASS (gst_wayland_kms_buffer_pool_parent_class)->finalize (object);
 }
 
 static gboolean
@@ -180,14 +197,28 @@ static gboolean
 gst_wayland_kms_buffer_pool_set_config (GstBufferPool * pool,
     GstStructure * config)
 {
+  GstWaylandKmsBufferPool *self = GST_WAYLAND_KMS_BUFFER_POOL (pool);
+  GstAllocationParams params;
   GstCaps *caps;
   guint size;
+
+  if (self->allocator)
+    gst_object_unref (self->allocator);
+  self->allocator = NULL;
 
 /* Always set the buffer pool min/max buffers to the defined value */
   if (gst_buffer_pool_config_get_params (config, &caps, &size, NULL, NULL)) {
     gst_buffer_pool_config_set_params (config, caps, size,
         GST_WAYLAND_BUFFER_POOL_NUM, GST_WAYLAND_BUFFER_POOL_NUM);
   }
+
+  if (!gst_buffer_pool_config_get_allocator (config, &self->allocator, &params)) {
+    GST_WARNING_OBJECT (self, "failed to get allocator");
+    return FALSE;
+  }
+
+  if (self->allocator)
+    gst_object_ref (self->allocator);
 
   return GST_BUFFER_POOL_CLASS (parent_class)->set_config (pool, config);
 }
