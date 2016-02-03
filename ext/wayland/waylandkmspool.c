@@ -67,6 +67,8 @@ gst_wl_kms_meta_free (GstWlKmsMeta * meta, GstBuffer * buffer)
       else
         close (gst_dmabuf_memory_get_fd (mem));
       kms_bo_destroy (&kms_bo);
+
+      gst_memory_unref (mem);
     }
     g_ptr_array_unref (meta->kms_bo_array);
   }
