@@ -97,7 +97,7 @@
 #include <gst/gst.h>
 #include <gst/glib-compat-private.h>
 #include <sys/ioctl.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <stdio.h>
