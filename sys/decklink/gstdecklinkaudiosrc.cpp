@@ -379,7 +379,7 @@ gst_decklink_audio_src_start (GstDecklinkAudioSrc * self)
       g_mutex_unlock (&self->input->lock);
 
       if (videosrc) {
-        g_object_get (videosrc, "connection", &vconn, NULL);
+        g_object_get (videosrc, "connection", &vconn, (void *) NULL);
         gst_object_unref (videosrc);
 
         switch (vconn) {

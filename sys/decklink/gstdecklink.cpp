@@ -675,7 +675,7 @@ gst_decklink_mode_get_generic_structure (GstDecklinkModeEnum e)
       "pixel-aspect-ratio", GST_TYPE_FRACTION, mode->par_n, mode->par_d,
       "interlace-mode", G_TYPE_STRING,
       mode->interlaced ? "interleaved" : "progressive",
-      "framerate", GST_TYPE_FRACTION, mode->fps_n, mode->fps_d, NULL);
+      "framerate", GST_TYPE_FRACTION, mode->fps_n, mode->fps_d, (void*)NULL);
 
   return s;
 }
@@ -700,16 +700,16 @@ gst_decklink_mode_get_structure (GstDecklinkModeEnum e, BMDPixelFormat f,
     case bmdFormat8BitYUV:     /* '2vuy' */
       gst_structure_set (s, "format", G_TYPE_STRING, "UYVY",
           "colorimetry", G_TYPE_STRING, mode->colorimetry,
-          "chroma-site", G_TYPE_STRING, "mpeg2", NULL);
+          "chroma-site", G_TYPE_STRING, "mpeg2", (void*)NULL);
       break;
     case bmdFormat10BitYUV:    /* 'v210' */
-      gst_structure_set (s, "format", G_TYPE_STRING, "v210", NULL);
+      gst_structure_set (s, "format", G_TYPE_STRING, "v210", (void*)NULL);
       break;
     case bmdFormat8BitARGB:    /* 'ARGB' */
-      gst_structure_set (s, "format", G_TYPE_STRING, "ARGB", NULL);
+      gst_structure_set (s, "format", G_TYPE_STRING, "ARGB", (void*)NULL);
       break;
     case bmdFormat8BitBGRA:    /* 'BGRA' */
-      gst_structure_set (s, "format", G_TYPE_STRING, "BGRA", NULL);
+      gst_structure_set (s, "format", G_TYPE_STRING, "BGRA", (void*)NULL);
       break;
     case bmdFormat10BitRGB:    /* 'r210' Big-endian RGB 10-bit per component with SMPTE video levels (64-960). Packed as 2:10:10:10 */
     case bmdFormat12BitRGB:    /* 'R12B' Big-endian RGB 12-bit per component with full range (0-4095). Packed as 12-bit per component */

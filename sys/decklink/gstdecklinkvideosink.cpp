@@ -286,7 +286,7 @@ reset_framerate (GstCapsFeatures * features, GstStructure * structure,
     gpointer user_data)
 {
   gst_structure_set (structure, "framerate", GST_TYPE_FRACTION_RANGE, 0, 1,
-      G_MAXINT, 1, NULL);
+      G_MAXINT, 1, (void *) NULL);
 
   return TRUE;
 }
