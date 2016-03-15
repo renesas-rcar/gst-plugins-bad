@@ -33,6 +33,9 @@ m4_ifdef([AM_SILENT_RULES],[AM_SILENT_RULES([yes])],
   [AM_DEFAULT_VERBOSITY=1
    AC_SUBST(AM_DEFAULT_VERBOSITY)])
 
+dnl PKG_CONFIG_SYSROOT_DIR is a valid environment variable
+m4_pattern_allow(PKG_CONFIG_SYSROOT_DIR)
+
 dnl our libraries and install dirs use GST_API_VERSION in the filename
 dnl to allow side-by-side installation of different API versions
 GST_API_VERSION=1.0
@@ -1962,6 +1965,9 @@ AG_GST_CHECK_FEATURE(WAYLAND, [wayland sink], wayland , [
         AC_DEFINE(HAVE_WAYLAND_KMS, 1, [Define if wayland KMS protocol is available])],
        [HAVE_WAYLAND_KMS="no"])
   AM_CONDITIONAL(USE_WAYLAND_KMS, test "x$HAVE_WAYLAND_KMS" = "xyes")
+  PKG_CHECK_MODULES(WAYLAND_PROTOCOLS, [wayland-protocols],
+    [ac_wayland_protocols_pkgdatadir=`$PKG_CONFIG --variable=pkgdatadir wayland-protocols`])
+  AC_SUBST(WAYLAND_PROTOCOLS_DATADIR, $PKG_CONFIG_SYSROOT_DIR$ac_wayland_protocols_pkgdatadir)
 ])
 
 AC_PATH_PROG([wayland_scanner], [wayland-scanner])

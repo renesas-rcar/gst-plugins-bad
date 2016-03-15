@@ -7,7 +7,8 @@ libgstwaylandsink_la_SOURCES =  \
 	wldisplay.c \
 	wlwindow.c \
 	wlvideoformat.c \
-	scaler-protocol.c
+	scaler-protocol.c \
+	linux-dmabuf-protocol.c
 
 libgstwaylandsink_la_CFLAGS = $(GST_CFLAGS) $(GST_PLUGINS_BASE_CFLAGS) \
                                $(WAYLAND_CFLAGS) $(GST_PLUGINS_BAD_CFLAGS)
@@ -26,7 +27,8 @@ noinst_HEADERS = \
 	wldisplay.h \
 	wlwindow.h \
 	wlvideoformat.h \
-	scaler-client-protocol.h
+	scaler-client-protocol.h \
+	linux-dmabuf-client-protocol.h
 
 if USE_WAYLAND_KMS
 libgstwaylandsink_la_SOURCES += waylandkmspool.c
@@ -37,13 +39,24 @@ noinst_HEADERS += waylandkmspool.h
 endif
 
 EXTRA_DIST = scaler.xml
-CLEANFILES = scaler-protocol.c scaler-client-protocol.h
+CLEANFILES = scaler-protocol.c scaler-client-protocol.h \
+	linux-dmabuf-protocol.c \
+	linux-dmabuf-client-protocol.h
 
-%-protocol.c : %.xml
-	$(wayland_scanner) code < $< > $@
+WAYLAND_GEN_PROTOCOL_CODE = $(wayland_scanner) code < $< > $@
+WAYLAND_GEN_PROTOCOL_HEADER = $(wayland_scanner) client-header < $< > $@
 
-%-client-protocol.h : %.xml
-	$(wayland_scanner) client-header < $< > $@
+linux-dmabuf-protocol.c : $(WAYLAND_PROTOCOLS_DATADIR)/linux-dmabuf.xml
+	$(WAYLAND_GEN_PROTOCOL_CODE)
+
+linux-dmabuf-client-protocol.h : $(WAYLAND_PROTOCOLS_DATADIR)/linux-dmabuf.xml
+	$(WAYLAND_GEN_PROTOCOL_HEADER)
+
+scaler-protocol.c : scaler.xml
+	$(WAYLAND_GEN_PROTOCOL_CODE)
+
+scaler-client-protocol.h : scaler.xml
+	$(WAYLAND_GEN_PROTOCOL_HEADER)
 
 gstwaylandsink.c: scaler-client-protocol.h
 
@@ -51,6 +64,6 @@ waylandpool.c: scaler-client-protocol.h
 
 wlbuffer.c: scaler-client-protocol.h
 
-wldisplay.c: scaler-client-protocol.h
+wldisplay.c: scaler-client-protocol.h linux-dmabuf-client-protocol.h
 
 wlwindow.c: scaler-client-protocol.h
