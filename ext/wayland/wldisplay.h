@@ -24,6 +24,7 @@
 #include <gst/gst.h>
 #include <wayland-client.h>
 #include "scaler-client-protocol.h"
+#include "linux-dmabuf-client-protocol.h"
 
 G_BEGIN_DECLS
 
@@ -51,8 +52,10 @@ struct _GstWlDisplay
   struct wl_subcompositor *subcompositor;
   struct wl_shell *shell;
   struct wl_shm *shm;
+  struct zlinux_dmabuf *dmabuf;
   struct wl_scaler *scaler;
   GArray *formats;
+  GArray *dmabuf_formats;
 
   /* private */
   gboolean own_display;

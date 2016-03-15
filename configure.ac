@@ -1934,6 +1934,9 @@ AG_GST_CHECK_FEATURE(WAYLAND, [wayland sink], wayland , [
   PKG_CHECK_MODULES(WAYLAND, wayland-client >= 1.4.0 wayland-scanner, [
     HAVE_WAYLAND="yes" ], [ HAVE_WAYLAND="no"
   ])
+  PKG_CHECK_MODULES(WAYLAND_PROTOCOLS, [wayland-protocols],
+    [ac_wayland_protocols_pkgdatadir=`$PKG_CONFIG --variable=pkgdatadir wayland-protocols`])
+  AC_SUBST(WAYLAND_PROTOCOLS_DATADIR, $PKG_CONFIG_SYSROOT_DIR$ac_wayland_protocols_pkgdatadir)
 ])
 
 AC_PATH_PROG([wayland_scanner], [wayland-scanner])
