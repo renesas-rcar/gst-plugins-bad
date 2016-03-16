@@ -26,9 +26,6 @@
 #include "waylandpool.h"
 #include "wldisplay.h"
 #include "wlvideoformat.h"
-#ifdef HAVE_WAYLAND_KMS
-#include "waylandkmspool.h"
-#endif
 #include "wlbuffer.h"
 
 #include <stdio.h>
@@ -211,11 +208,11 @@ gst_wayland_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
   stride = GST_VIDEO_INFO_PLANE_STRIDE (&self->info, 0);
   size = GST_VIDEO_INFO_SIZE (&self->info);
   format =
-      gst_video_format_to_wayland_format (GST_VIDEO_INFO_FORMAT (&self->info));
+      gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (&self->info));
 
   GST_DEBUG_OBJECT (self, "Allocating buffer of size %" G_GSSIZE_FORMAT
       " (%d x %d, stride %d), format %s", size, width, height, stride,
-      gst_wayland_format_to_string (format));
+      gst_wl_shm_format_to_string (format));
 
   /* try to reserve another memory block from the shm pool */
   if (self->used + size > self->size)
@@ -253,11 +250,7 @@ gst_wayland_buffer_pool_new (GstWlDisplay * display)
   GstWaylandBufferPool *pool;
 
   g_return_val_if_fail (GST_IS_WL_DISPLAY (display), NULL);
-#ifdef HAVE_WAYLAND_KMS
-  pool = g_object_new (GST_TYPE_WAYLAND_KMS_BUFFER_POOL, NULL);
-#else
   pool = g_object_new (GST_TYPE_WAYLAND_BUFFER_POOL, NULL);
-#endif
   pool->display = g_object_ref (display);
 
   return GST_BUFFER_POOL_CAST (pool);

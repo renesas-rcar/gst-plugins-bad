@@ -1,9 +1,7 @@
 /* GStreamer Wayland video sink
  *
- * Copyright (C) 2011 Intel Corporation
- * Copyright (C) 2011 Sreerenj Balachandran <sreerenj.balachandran@intel.com>
- * Copyright (C) 2012 Wim Taymans <wim.taymans@gmail.com>
- * Copyright (C) 2014 Collabora Ltd.
+ * Copyright (C) 2014-2015 Collabora Ltd.
+ * Copyright (C) 2016 Renesas Electronics Corporation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,27 +17,23 @@
  * License along with this library; if not, write to the Free
  * Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
+ *
+ * Based on wldmabufsink by Collabora Ltd.
+ *
  */
 
-#ifndef __GST_WL_VIDEO_FORMAT_H__
-#define __GST_WL_VIDEO_FORMAT_H__
+#ifndef __GST_WL_DMABUF_H__
+#define __GST_WL_DMABUF_H__
 
-#include <wayland-client.h>
-#include <gst/video/video.h>
+#include <gst/gst.h>
+#include "gstwaylandsink.h"
 
 G_BEGIN_DECLS
 
-enum wl_shm_format gst_video_format_to_wl_shm_format (GstVideoFormat format);
-GstVideoFormat gst_wl_shm_format_to_video_format (enum wl_shm_format wl_format);
-
-const gchar *gst_wl_shm_format_to_string (enum wl_shm_format wl_format);
-
-
-guint32 gst_video_format_to_wl_dmabuf_format (GstVideoFormat format);
-GstVideoFormat gst_wl_dmabuf_format_to_video_format (guint32 wl_format);
-
-const gchar *gst_wl_dmabuf_format_to_string (guint32 wl_format);
+GstFlowReturn
+gst_wl_dmabuf_create_wl_buffer (GstWaylandSink * sink, GstBuffer * buffer,
+    GstBuffer ** to_render);
 
 G_END_DECLS
 
-#endif
+#endif /* __GST_WL_DMABUF_H__ */

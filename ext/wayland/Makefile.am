@@ -7,6 +7,7 @@ libgstwaylandsink_la_SOURCES =  \
 	wldisplay.c \
 	wlwindow.c \
 	wlvideoformat.c \
+	wldmabuf.c \
 	scaler-protocol.c \
 	linux-dmabuf-protocol.c
 
@@ -15,6 +16,7 @@ libgstwaylandsink_la_CFLAGS = $(GST_CFLAGS) $(GST_PLUGINS_BASE_CFLAGS) \
 libgstwaylandsink_la_LIBADD = \
 	$(GST_PLUGINS_BASE_LIBS) \
 	-lgstvideo-$(GST_API_VERSION) \
+	-lgstallocators-$(GST_API_VERSION) \
 	$(WAYLAND_LIBS) \
 	$(top_builddir)/gst-libs/gst/wayland/libgstwayland-$(GST_API_VERSION).la
 libgstwaylandsink_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
@@ -27,16 +29,9 @@ noinst_HEADERS = \
 	wldisplay.h \
 	wlwindow.h \
 	wlvideoformat.h \
+	wldmabuf.h \
 	scaler-client-protocol.h \
 	linux-dmabuf-client-protocol.h
-
-if USE_WAYLAND_KMS
-libgstwaylandsink_la_SOURCES += waylandkmspool.c
-libgstwaylandsink_la_CFLAGS += $(WAYLAND_KMS_CFLAGS)
-libgstwaylandsink_la_LIBADD += $(WAYLAND_KMS_LIBS) \
-				-lgstallocators-$(GST_API_VERSION)
-noinst_HEADERS += waylandkmspool.h
-endif
 
 EXTRA_DIST = scaler.xml
 CLEANFILES = scaler-protocol.c scaler-client-protocol.h \
@@ -67,3 +62,5 @@ wlbuffer.c: scaler-client-protocol.h
 wldisplay.c: scaler-client-protocol.h linux-dmabuf-client-protocol.h
 
 wlwindow.c: scaler-client-protocol.h
+
+wldmabuf.c: linux-dmabuf-client-protocol.h

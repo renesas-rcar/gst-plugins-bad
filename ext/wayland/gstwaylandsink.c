@@ -44,8 +44,8 @@
 #include "gstwaylandsink.h"
 #include "wlvideoformat.h"
 #include "waylandpool.h"
-#include "waylandkmspool.h"
 #include "wlbuffer.h"
+#include "wldmabuf.h"
 
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>
@@ -96,9 +96,6 @@ static gboolean
 gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query);
 static gboolean gst_wayland_sink_render (GstBaseSink * bsink,
     GstBuffer * buffer);
-#ifdef HAVE_WAYLAND_KMS
-static gboolean gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query);
-#endif
 
 /* VideoOverlay interface */
 static void gst_wayland_sink_videooverlay_init (GstVideoOverlayInterface *
@@ -157,9 +154,6 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
   gstbasesink_class->propose_allocation =
       GST_DEBUG_FUNCPTR (gst_wayland_sink_propose_allocation);
   gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_wayland_sink_render);
-#ifdef HAVE_WAYLAND_KMS
-  gstbasesink_class->query = GST_DEBUG_FUNCPTR (gst_wayland_sink_query);
-#endif
 
   g_object_class_install_property (gobject_class, PROP_DISPLAY,
       g_param_spec_string ("display", "Wayland Display name", "Wayland "
@@ -414,34 +408,9 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
 
   sink = GST_WAYLAND_SINK (bsink);
 
+  /* weston has not implemented the zlinux_dmabuf format listener,
+     so negotiate with the upstream by the template caps. */
   caps = gst_pad_get_pad_template_caps (GST_VIDEO_SINK_PAD (sink));
-
-  g_mutex_lock (&sink->display_lock);
-
-  if (sink->display) {
-    GValue list = G_VALUE_INIT;
-    GValue value = G_VALUE_INIT;
-    GArray *formats;
-    gint i;
-    guint fmt;
-
-    g_value_init (&list, GST_TYPE_LIST);
-    g_value_init (&value, G_TYPE_STRING);
-
-    formats = sink->display->formats;
-    for (i = 0; i < formats->len; i++) {
-      fmt = g_array_index (formats, uint32_t, i);
-      g_value_set_string (&value, gst_wayland_format_to_string (fmt));
-      gst_value_list_append_value (&list, &value);
-    }
-
-    caps = gst_caps_make_writable (caps);
-    gst_structure_set_value (gst_caps_get_structure (caps, 0), "format", &list);
-
-    GST_DEBUG_OBJECT (sink, "display caps: %" GST_PTR_FORMAT, caps);
-  }
-
-  g_mutex_unlock (&sink->display_lock);
 
   if (filter) {
     GstCaps *intersection;
@@ -461,7 +430,8 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   GstWaylandSink *sink;
   GstBufferPool *newpool;
   GstVideoInfo info;
-  guint format;
+  guint shm_format;
+  guint dmabuf_format;
   GArray *formats;
   gint i;
   GstStructure *structure;
@@ -475,14 +445,21 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   if (!gst_video_info_from_caps (&info, caps))
     goto invalid_format;
 
-  format = gst_video_format_to_wayland_format (GST_VIDEO_INFO_FORMAT (&info));
-  if ((gint) format == -1)
+  shm_format =
+      gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (&info));
+  dmabuf_format =
+      gst_video_format_to_wl_dmabuf_format (GST_VIDEO_INFO_FORMAT (&info));
+  if ((gint) shm_format == -1 && (gint) dmabuf_format == -1)
     goto invalid_format;
 
+  /* store the video info */
+  sink->video_info = info;
+  sink->video_info_changed = TRUE;
+
   /* verify we support the requested format */
-  formats = sink->display->formats;
+  formats = sink->display->shm_formats;
   for (i = 0; i < formats->len; i++) {
-    if (g_array_index (formats, uint32_t, i) == format)
+    if (g_array_index (formats, uint32_t, i) == shm_format)
       break;
   }
 
@@ -496,22 +473,17 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   structure = gst_buffer_pool_get_config (newpool);
   gst_buffer_pool_config_set_params (structure, caps, info.size, 2, 0);
-#ifdef HAVE_WAYLAND_KMS
-  gst_structure_set (structure, "videosink_buffer_creation_request_supported",
-      G_TYPE_BOOLEAN, TRUE, NULL);
-#endif
   gst_buffer_pool_config_set_allocator (structure, NULL, &params);
   if (!gst_buffer_pool_set_config (newpool, structure))
     goto config_failed;
-
-  /* store the video info */
-  sink->video_info = info;
-  sink->video_info_changed = TRUE;
 
   gst_object_replace ((GstObject **) & sink->pool, (GstObject *) newpool);
   gst_object_unref (newpool);
 
   return TRUE;
+
+  /* Return TRUE even if the shm pool creation or configuration failure happens
+     bacause zlinux_dmabuf might support formats wl_shm cannot handle. */
 
 invalid_format:
   {
@@ -521,20 +493,20 @@ invalid_format:
   }
 unsupported_format:
   {
-    GST_DEBUG_OBJECT (sink, "Format %s is not available on the display",
-        gst_wayland_format_to_string (format));
-    return FALSE;
+    GST_DEBUG_OBJECT (sink, "shm format %s is not available on the display",
+        gst_wl_shm_format_to_string (shm_format));
+    return TRUE;
   }
 pool_failed:
   {
-    GST_DEBUG_OBJECT (sink, "Failed to create new pool");
-    return FALSE;
+    GST_DEBUG_OBJECT (sink, "Failed to create new shm pool");
+    return TRUE;
   }
 config_failed:
   {
-    GST_DEBUG_OBJECT (bsink, "failed setting config");
+    GST_DEBUG_OBJECT (bsink, "failed setting shm pool config");
     gst_object_unref (newpool);
-    return FALSE;
+    return TRUE;
   }
 }
 
@@ -547,9 +519,6 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
   GstCaps *caps;
   guint size;
   gboolean need_pool;
-#ifdef HAVE_WAYLAND_KMS
-  GstAllocator *allocator;
-#endif
   GstAllocationParams params;
 
   gst_allocation_params_init (&params);
@@ -590,11 +559,6 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
 
     config = gst_buffer_pool_get_config (pool);
     gst_buffer_pool_config_set_params (config, caps, size, 2, 0);
-#ifdef HAVE_WAYLAND_KMS
-    gst_structure_set (config, "videosink_buffer_creation_request_supported",
-        G_TYPE_BOOLEAN, TRUE, NULL);
-    gst_buffer_pool_config_set_allocator (config, NULL, &params);
-#endif
     if (!gst_buffer_pool_set_config (pool, config))
       goto config_failed;
   }
@@ -606,11 +570,6 @@ gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query)
      */
     gst_query_add_allocation_param (query, gst_allocator_find (NULL), &params);
 
-#ifdef HAVE_WAYLAND_KMS
-    allocator = gst_dmabuf_allocator_new ();
-    gst_query_add_allocation_param (query, allocator, &params);
-    gst_object_unref (allocator);
-#endif
     gst_object_unref (pool);
   }
 
@@ -746,21 +705,25 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
     to_render = buffer;
   } else {
     GstMapInfo src;
+    GstFlowReturn flow_ret;
     GST_LOG_OBJECT (sink, "buffer %p not from our pool, copying", buffer);
 
-    if (!sink->pool)
-      goto no_pool;
+    flow_ret = gst_wl_dmabuf_create_wl_buffer (sink, buffer, &to_render);
+    if (flow_ret != GST_FLOW_OK) {
+      if (!sink->pool)
+        goto no_pool;
 
-    if (!gst_buffer_pool_set_active (sink->pool, TRUE))
-      goto activate_failed;
+      if (!gst_buffer_pool_set_active (sink->pool, TRUE))
+        goto activate_failed;
 
-    ret = gst_buffer_pool_acquire_buffer (sink->pool, &to_render, NULL);
-    if (ret != GST_FLOW_OK)
-      goto no_buffer;
+      ret = gst_buffer_pool_acquire_buffer (sink->pool, &to_render, NULL);
+      if (ret != GST_FLOW_OK)
+        goto no_buffer;
 
-    gst_buffer_map (buffer, &src, GST_MAP_READ);
-    gst_buffer_fill (to_render, 0, src.data, src.size);
-    gst_buffer_unmap (buffer, &src);
+      gst_buffer_map (buffer, &src, GST_MAP_READ);
+      gst_buffer_fill (to_render, 0, src.data, src.size);
+      gst_buffer_unmap (buffer, &src);
+    }
   }
 
   gst_buffer_replace (&sink->last_buffer, to_render);
@@ -930,105 +893,6 @@ gst_wayland_sink_end_geometry_change (GstWaylandVideo * video)
   wl_subsurface_set_desync (sink->window->subsurface);
   g_mutex_unlock (&sink->render_lock);
 }
-
-#ifdef HAVE_WAYLAND_KMS
-static gboolean
-gst_wayland_sink_query (GstBaseSink * bsink, GstQuery * query)
-{
-  GstWaylandSink *sink = GST_WAYLAND_SINK (bsink);
-  gboolean ret = FALSE;
-
-  switch (GST_QUERY_TYPE (query)) {
-    case GST_QUERY_CUSTOM:
-    {
-      GstWaylandBufferPool *wpool;
-      const GstStructure *structure;
-      GstStructure *str_writable;
-      gint dmabuf[GST_VIDEO_MAX_PLANES];
-      GstAllocator *allocator;
-      gint width, height;
-      gint stride[GST_VIDEO_MAX_PLANES];
-      const gchar *str;
-      const GValue *p_val;
-      GValue val = { 0, };
-      GstVideoFormat format;
-      GstBuffer *buffer;
-      GArray *dmabuf_array;
-      GArray *stride_array;
-      gint n_planes;
-      gint i;
-
-      wpool = GST_WAYLAND_BUFFER_POOL_CAST (sink->pool);
-
-      structure = gst_query_get_structure (query);
-      if (structure == NULL
-          || !gst_structure_has_name (structure,
-              "videosink_buffer_creation_request")) {
-        GST_LOG_OBJECT (sink, "not a videosink_buffer_creation_request query");
-        break;
-      }
-
-      GST_DEBUG_OBJECT (sink,
-          "received a videosink_buffer_creation_request query");
-
-      gst_structure_get (structure, "width", G_TYPE_INT, &width,
-          "height", G_TYPE_INT, &height, "stride", G_TYPE_ARRAY, &stride_array,
-          "dmabuf", G_TYPE_ARRAY, &dmabuf_array,
-          "n_planes", G_TYPE_INT, &n_planes,
-          "allocator", G_TYPE_POINTER, &p_val,
-          "format", G_TYPE_STRING, &str, NULL);
-
-      allocator = (GstAllocator *) g_value_get_pointer (p_val);
-      if (allocator == NULL) {
-        GST_WARNING_OBJECT (sink,
-            "an invalid allocator in videosink_buffer_creation_request query");
-        break;
-      }
-
-      format = gst_video_format_from_string (str);
-      if (format == GST_VIDEO_FORMAT_UNKNOWN) {
-        GST_WARNING_OBJECT (sink,
-            "invalid color format in videosink_buffer_creation_request query");
-        break;
-      }
-
-      for (i = 0; i < n_planes; i++) {
-        dmabuf[i] = g_array_index (dmabuf_array, gint, i);
-        stride[i] = g_array_index (stride_array, gint, i);
-        GST_DEBUG_OBJECT (sink, "plane:%d dmabuf:%d stride:%d\n", i, dmabuf[i],
-            stride[i]);
-      }
-
-      GST_DEBUG_OBJECT (sink,
-          "videosink_buffer_creation_request query param: width:%d height:%d allocator:%p format:%s",
-          width, height, allocator, str);
-
-      buffer = gst_wayland_buffer_pool_create_buffer_from_dmabuf (wpool,
-          dmabuf, allocator, width, height, stride, format, n_planes);
-      if (buffer == NULL) {
-        GST_WARNING_OBJECT (sink,
-            "failed to create a buffer from videosink_buffer_creation_request query");
-        break;
-      }
-
-      g_value_init (&val, GST_TYPE_BUFFER);
-      gst_value_set_buffer (&val, buffer);
-      gst_buffer_unref (buffer);
-
-      str_writable = gst_query_writable_structure (query);
-      gst_structure_set_value (str_writable, "buffer", &val);
-
-      ret = TRUE;
-      break;
-    }
-    default:
-      ret = GST_BASE_SINK_CLASS (parent_class)->query (bsink, query);
-      break;
-  }
-
-  return ret;
-}
-#endif
 
 static gboolean
 plugin_init (GstPlugin * plugin)
