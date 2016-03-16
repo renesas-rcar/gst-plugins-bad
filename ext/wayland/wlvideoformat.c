@@ -153,6 +153,7 @@ gst_wl_shm_format_to_string (enum wl_shm_format wl_format)
       (gst_wl_shm_format_to_video_format (wl_format));
 }
 
+
 guint32
 gst_video_format_to_wl_dmabuf_format (GstVideoFormat format)
 {

@@ -45,9 +45,11 @@
 #include "wlvideoformat.h"
 #include "wlbuffer.h"
 #include "wlshmallocator.h"
+#include "wldmabuf.h"
 
 #include <gst/wayland/wayland.h>
 #include <gst/video/videooverlay.h>
+#include <gst/allocators/gstdmabuf.h>
 
 /* signals */
 enum
@@ -383,8 +385,12 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
 
   sink = GST_WAYLAND_SINK (bsink);
 
+  /* weston has not implemented the zlinux_dmabuf format listener,
+     so negotiate with the upstream by the template caps. */
   caps = gst_pad_get_pad_template_caps (GST_VIDEO_SINK_PAD (sink));
 
+//Disable until a zlinux_dmabuf format listener exists
+#if 0
   g_mutex_lock (&sink->display_lock);
 
   if (sink->display) {
@@ -411,6 +417,7 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
   }
 
   g_mutex_unlock (&sink->display_lock);
+#endif
 
   if (filter) {
     GstCaps *intersection;
@@ -430,9 +437,10 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   GstWaylandSink *sink;
   GstBufferPool *newpool;
   GstVideoInfo info;
-  enum wl_shm_format format;
+  guint shm_format;
+  guint dmabuf_format;
   GArray *formats;
-  gint i;
+  gint i = 0;
   GstStructure *structure;
 
   sink = GST_WAYLAND_SINK (bsink);
@@ -443,16 +451,30 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   if (!gst_video_info_from_caps (&info, caps))
     goto invalid_format;
 
-  format = gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (&info));
-  if ((gint) format == -1)
+  shm_format =
+      gst_video_format_to_wl_shm_format (GST_VIDEO_INFO_FORMAT (&info));
+  dmabuf_format =
+      gst_video_format_to_wl_dmabuf_format (GST_VIDEO_INFO_FORMAT (&info));
+  if ((gint) shm_format == -1 && (gint) dmabuf_format == -1)
     goto invalid_format;
+
+  /* store the video info */
+  sink->video_info = info;
+  sink->video_info_changed = TRUE;
 
   /* verify we support the requested format */
   formats = sink->display->formats;
+
+#if 0
+  /* As with get_caps, since there is no way to check the
+     supported formats on zlinux_dmabuf the check will always
+     fail, so disable it */
+
   for (i = 0; i < formats->len; i++) {
-    if (g_array_index (formats, uint32_t, i) == format)
+    if (g_array_index (formats, uint32_t, i) == shm_format)
       break;
   }
+#endif
 
   if (i >= formats->len)
     goto unsupported_format;
@@ -469,14 +491,13 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   if (!gst_buffer_pool_set_config (newpool, structure))
     goto config_failed;
 
-  /* store the video info */
-  sink->video_info = info;
-  sink->video_info_changed = TRUE;
-
   gst_object_replace ((GstObject **) & sink->pool, (GstObject *) newpool);
   gst_object_unref (newpool);
 
   return TRUE;
+
+  /* Return TRUE even if the shm pool creation or configuration failure happens
+     bacause zlinux_dmabuf might support formats wl_shm cannot handle. */
 
 invalid_format:
   {
@@ -487,19 +508,19 @@ invalid_format:
 unsupported_format:
   {
     GST_DEBUG_OBJECT (sink, "Format %s is not available on the display",
-        gst_wl_shm_format_to_string (format));
+        gst_wl_shm_format_to_string (shm_format));
     return FALSE;
   }
 pool_failed:
   {
-    GST_DEBUG_OBJECT (sink, "Failed to create new pool");
-    return FALSE;
+    GST_DEBUG_OBJECT (sink, "Failed to create new shm pool");
+    return TRUE;
   }
 config_failed:
   {
-    GST_DEBUG_OBJECT (bsink, "failed setting config");
+    GST_DEBUG_OBJECT (bsink, "failed setting shm pool config");
     gst_object_unref (newpool);
-    return FALSE;
+    return TRUE;
   }
 }
 
@@ -620,6 +641,9 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
     if (gst_is_wl_shm_memory (mem)) {
       wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, sink->display,
           &sink->video_info);
+    } else if (gst_is_dmabuf_memory (mem)) {
+      wbuf =
+          gst_wl_dmabuf_construct_wl_buffer (sink, buffer, &sink->video_info);
     }
 
     if (wbuf) {
