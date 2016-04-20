@@ -306,3 +306,34 @@ gst_wl_display_unregister_buffer (GstWlDisplay * self, gpointer buf)
 {
   g_hash_table_remove (self->buffers, buf);
 }
+
+GstContext *
+gst_wl_display_context_new (GstWlDisplay * self)
+{
+  GstContext *context =
+      gst_context_new (GST_WAYLAND_DISPLAY_CONTEXT_TYPE, TRUE);
+  gst_structure_set (gst_context_writable_structure (context),
+      GST_WAYLAND_DISPLAY_CONTEXT_TYPE, GST_TYPE_WL_DISPLAY, self, NULL);
+  return context;
+}
+
+GstWlDisplay *
+gst_wl_display_get_context (GstContext * context, GError ** error)
+{
+  const GstStructure *s;
+  GstWlDisplay *self;
+
+  g_return_val_if_fail (GST_IS_CONTEXT (context), NULL);
+
+  s = gst_context_get_structure (context);
+  gst_structure_get (s, GST_WAYLAND_DISPLAY_CONTEXT_TYPE, GST_TYPE_WL_DISPLAY,
+      &self, NULL);
+
+  if (!self) {
+    g_set_error (error, g_quark_from_static_string ("GstWlDisplay"), 0,
+        "Could not get GstWlDisplay context");
+    return NULL;
+  }
+
+  return self;
+}

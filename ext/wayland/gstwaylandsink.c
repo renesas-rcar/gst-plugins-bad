@@ -241,8 +241,14 @@ gst_wayland_sink_set_display_from_context (GstWaylandSink * sink,
   struct wl_display *display;
   GError *error = NULL;
 
-  display = gst_wayland_display_handle_context_get_handle (context);
-  sink->display = gst_wl_display_new_existing (display, FALSE, &error);
+  if (gst_context_has_context_type (context,
+          GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE)) {
+    display = gst_wayland_display_handle_context_get_handle (context);
+    sink->display = gst_wl_display_new_existing (display, FALSE, &error);
+  } else if (gst_context_has_context_type (context,
+          GST_WAYLAND_DISPLAY_CONTEXT_TYPE)) {
+    sink->display = gst_wl_display_get_context (context, &error);
+  }
 
   if (error) {
     GST_ELEMENT_WARNING (sink, RESOURCE, OPEN_READ_WRITE,
@@ -260,6 +266,10 @@ gst_wayland_sink_find_display (GstWaylandSink * sink)
   GstContext *context = NULL;
   GError *error = NULL;
   gboolean ret = TRUE;
+  gint i = 0;
+  const gchar *context_type[] = { GST_WAYLAND_DISPLAY_CONTEXT_TYPE,
+    GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE
+  };
 
   g_mutex_lock (&sink->display_lock);
 
@@ -273,15 +283,18 @@ gst_wayland_sink_find_display (GstWaylandSink * sink)
     gst_query_unref (query);
 
     if (G_LIKELY (!sink->display)) {
-      /* now ask the application to set the display handle */
-      msg = gst_message_new_need_context (GST_OBJECT_CAST (sink),
-          GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE);
+      while (i < G_N_ELEMENTS (context_type) && !sink->display) {
+        /* now ask the application to set the display handle */
+        msg = gst_message_new_need_context (GST_OBJECT_CAST (sink),
+            context_type[i]);
 
-      g_mutex_unlock (&sink->display_lock);
-      gst_element_post_message (GST_ELEMENT_CAST (sink), msg);
-      /* at this point we expect gst_wayland_sink_set_context
-       * to get called and fill sink->display */
-      g_mutex_lock (&sink->display_lock);
+        g_mutex_unlock (&sink->display_lock);
+        gst_element_post_message (GST_ELEMENT_CAST (sink), msg);
+        /* at this point we expect gst_wayland_sink_set_context
+         * to get called and fill sink->display */
+        g_mutex_lock (&sink->display_lock);
+        i++;
+      }
 
       if (!sink->display) {
         /* if the application didn't set a display, let's create it ourselves */
@@ -297,8 +310,7 @@ gst_wayland_sink_find_display (GstWaylandSink * sink)
           ret = FALSE;
         } else {
           /* inform the world about the new display */
-          context =
-              gst_wayland_display_handle_context_new (sink->display->display);
+          context = gst_wl_display_context_new (sink->display);
           msg = gst_message_new_have_context (GST_OBJECT_CAST (sink), context);
           gst_element_post_message (GST_ELEMENT_CAST (sink), msg);
         }
@@ -386,15 +398,12 @@ gst_wayland_sink_set_context (GstElement * element, GstContext * context)
 {
   GstWaylandSink *sink = GST_WAYLAND_SINK (element);
 
-  if (gst_context_has_context_type (context,
-          GST_WAYLAND_DISPLAY_HANDLE_CONTEXT_TYPE)) {
-    g_mutex_lock (&sink->display_lock);
-    if (G_LIKELY (!sink->display))
-      gst_wayland_sink_set_display_from_context (sink, context);
-    else
-      GST_WARNING_OBJECT (element, "changing display handle is not supported");
-    g_mutex_unlock (&sink->display_lock);
-  }
+  g_mutex_lock (&sink->display_lock);
+  if (G_LIKELY (!sink->display))
+    gst_wayland_sink_set_display_from_context (sink, context);
+  else
+    GST_WARNING_OBJECT (element, "changing display handle is not supported");
+  g_mutex_unlock (&sink->display_lock);
 
   if (GST_ELEMENT_CLASS (parent_class)->set_context)
     GST_ELEMENT_CLASS (parent_class)->set_context (element, context);

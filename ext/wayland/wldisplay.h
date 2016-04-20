@@ -35,6 +35,8 @@ G_BEGIN_DECLS
 #define GST_IS_WL_DISPLAY_CLASS(klass)       (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_WL_DISPLAY))
 #define GST_WL_DISPLAY_GET_CLASS(obj)        (G_TYPE_INSTANCE_GET_CLASS ((obj), GST_TYPE_WL_DISPLAY, GstWlDisplayClass))
 
+#define GST_WAYLAND_DISPLAY_CONTEXT_TYPE "GstWaylandDisplayContextType"
+
 typedef struct _GstWlDisplay GstWlDisplay;
 typedef struct _GstWlDisplayClass GstWlDisplayClass;
 
@@ -79,6 +81,9 @@ GstWlDisplay *gst_wl_display_new_existing (struct wl_display * display,
 void gst_wl_display_stop (GstWlDisplay * self);
 void gst_wl_display_register_buffer (GstWlDisplay * self, gpointer buf);
 void gst_wl_display_unregister_buffer (GstWlDisplay * self, gpointer buf);
+
+GstContext *gst_wl_display_context_new (GstWlDisplay * self);
+GstWlDisplay *gst_wl_display_get_context (GstContext * context, GError ** error);
 
 G_END_DECLS
 
