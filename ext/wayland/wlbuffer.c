@@ -128,7 +128,7 @@ static const struct wl_buffer_listener buffer_listener = {
 
 void
 gst_buffer_add_wl_buffer (GstBuffer * gstbuffer, struct wl_buffer *wlbuffer,
-    GstWlDisplay * display)
+    GstWlDisplay * display, GstWlWindow * window)
 {
   GstWlBuffer *self;
 
@@ -136,6 +136,8 @@ gst_buffer_add_wl_buffer (GstBuffer * gstbuffer, struct wl_buffer *wlbuffer,
   self->gstbuffer = gstbuffer;
   self->wlbuffer = wlbuffer;
   self->display = display;
+  self->quark = (window) ? g_quark_from_string (GST_OBJECT_NAME (window)) :
+      gst_wl_buffer_qdata_quark ();
 
   gst_wl_display_register_buffer (self->display, self);
 
@@ -143,12 +145,19 @@ gst_buffer_add_wl_buffer (GstBuffer * gstbuffer, struct wl_buffer *wlbuffer,
   wl_buffer_add_listener (self->wlbuffer, &buffer_listener, self);
 
   gst_mini_object_set_qdata ((GstMiniObject *) gstbuffer,
-      gst_wl_buffer_qdata_quark (), self, g_object_unref);
+      self->quark, self, g_object_unref);
 }
 
 GstWlBuffer *
-gst_buffer_get_wl_buffer (GstBuffer * gstbuffer)
+gst_buffer_get_wl_buffer (GstBuffer * gstbuffer, GstWlWindow * window)
 {
+  GstWlBuffer *self;
+
+  self = gst_mini_object_get_qdata ((GstMiniObject *) gstbuffer,
+      g_quark_from_string (GST_OBJECT_NAME (window)));
+  if (self)
+    return self;
+
   return gst_mini_object_get_qdata ((GstMiniObject *) gstbuffer,
       gst_wl_buffer_qdata_quark ());
 }
@@ -158,7 +167,7 @@ gst_wl_buffer_force_release_and_unref (GstWlBuffer * self)
 {
   /* detach from the GstBuffer */
   (void) gst_mini_object_steal_qdata ((GstMiniObject *) self->gstbuffer,
-      gst_wl_buffer_qdata_quark ());
+      self->quark);
 
   /* force a buffer release
    * at this point, the GstWlDisplay has killed its event loop,

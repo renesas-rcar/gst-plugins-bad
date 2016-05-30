@@ -45,6 +45,8 @@ struct _GstWlBuffer
   GstWlDisplay *display;
 
   gboolean used_by_compositor;
+
+  GQuark quark;
 };
 
 struct _GstWlBufferClass
@@ -55,8 +57,9 @@ struct _GstWlBufferClass
 GType gst_wl_buffer_get_type (void);
 
 void gst_buffer_add_wl_buffer (GstBuffer * gstbuffer,
-    struct wl_buffer * wlbuffer, GstWlDisplay * display);
-GstWlBuffer * gst_buffer_get_wl_buffer (GstBuffer * gstbuffer);
+    struct wl_buffer * wlbuffer, GstWlDisplay * display, GstWlWindow * window);
+GstWlBuffer * gst_buffer_get_wl_buffer (GstBuffer * gstbuffer,
+    GstWlWindow * window);
 
 void gst_wl_buffer_force_release_and_unref (GstWlBuffer * self);
 

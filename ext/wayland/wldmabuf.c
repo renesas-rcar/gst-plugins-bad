@@ -150,7 +150,7 @@ gst_wl_dmabuf_create_wl_buffer (GstWaylandSink * sink, GstBuffer * buffer,
     return GST_FLOW_ERROR;
   }
 
-  gst_buffer_add_wl_buffer (buffer, wbuf, sink->display);
+  gst_buffer_add_wl_buffer (buffer, wbuf, sink->display, sink->window);
   *to_render = buffer;
 
   return GST_FLOW_OK;

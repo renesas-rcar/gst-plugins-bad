@@ -232,7 +232,7 @@ gst_wayland_buffer_pool_alloc (GstBufferPool * pool, GstBuffer ** buffer,
   /* create wl_buffer and attach it on the GstBuffer via GstWlBuffer */
   wbuffer = wl_shm_pool_create_buffer (self->wl_pool, offset, width, height,
       stride, format);
-  gst_buffer_add_wl_buffer (*buffer, wbuffer, self->display);
+  gst_buffer_add_wl_buffer (*buffer, wbuffer, self->display, NULL);
 
   return GST_FLOW_OK;
 

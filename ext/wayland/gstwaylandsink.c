@@ -624,7 +624,7 @@ render_last_buffer (GstWaylandSink * sink)
   struct wl_surface *surface;
   struct wl_callback *callback;
 
-  wlbuffer = gst_buffer_get_wl_buffer (sink->last_buffer);
+  wlbuffer = gst_buffer_get_wl_buffer (sink->last_buffer, sink->window);
   surface = gst_wl_window_get_wl_surface (sink->window);
 
   g_atomic_int_set (&sink->redraw_pending, TRUE);
@@ -698,7 +698,7 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
           sink->window->surface_height == 0))
     goto no_window_size;
 
-  wlbuffer = gst_buffer_get_wl_buffer (buffer);
+  wlbuffer = gst_buffer_get_wl_buffer (buffer, sink->window);
 
   if (wlbuffer && wlbuffer->display == sink->display) {
     GST_LOG_OBJECT (sink, "buffer %p from our pool, writing directly", buffer);
