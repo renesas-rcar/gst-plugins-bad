@@ -38,7 +38,7 @@ typedef struct _GstWlWindowClass GstWlWindowClass;
 
 struct _GstWlWindow
 {
-  GObject parent_instance;
+  GstObject parent_instance;
 
   GstWlDisplay *display;
   struct wl_surface *surface;
@@ -56,7 +56,7 @@ struct _GstWlWindow
 
 struct _GstWlWindowClass
 {
-  GObjectClass parent_class;
+  GstObjectClass parent_class;
 };
 
 GType gst_wl_window_get_type (void);
