@@ -600,7 +600,7 @@ render_last_buffer (GstWaylandSink * sink)
   struct wl_surface *surface;
   struct wl_callback *callback;
 
-  wlbuffer = gst_buffer_get_wl_buffer (sink->last_buffer);
+  wlbuffer = gst_buffer_get_wl_buffer (sink->last_buffer, sink->display);
   surface = gst_wl_window_get_wl_surface (sink->window);
 
   g_atomic_int_set (&sink->redraw_pending, TRUE);
@@ -655,9 +655,9 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
   if (G_UNLIKELY (sink->window->render_rectangle.w == 0))
     goto no_window_size;
 
-  wlbuffer = gst_buffer_get_wl_buffer (buffer);
+  wlbuffer = gst_buffer_get_wl_buffer (buffer, sink->display);
 
-  if (G_LIKELY (wlbuffer && wlbuffer->display == sink->display)) {
+  if (G_LIKELY (wlbuffer)) {
     GST_LOG_OBJECT (sink, "buffer %p has a wl_buffer from our display, "
         "writing directly", buffer);
     to_render = buffer;
@@ -702,7 +702,7 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
 
       /* the first time we acquire a buffer,
        * we need to attach a wl_buffer on it */
-      wlbuffer = gst_buffer_get_wl_buffer (to_render);
+      wlbuffer = gst_buffer_get_wl_buffer (to_render, sink->display);
       if (G_UNLIKELY (!wlbuffer)) {
         mem = gst_buffer_peek_memory (to_render, 0);
         wbuf = gst_wl_shm_memory_construct_wl_buffer (mem, sink->display,
