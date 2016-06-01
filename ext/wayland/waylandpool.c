@@ -77,8 +77,10 @@ gst_wayland_buffer_pool_finalize (GObject * object)
 {
   GstWaylandBufferPool *pool = GST_WAYLAND_BUFFER_POOL_CAST (object);
 
-  if (pool->wl_pool)
-    gst_wayland_buffer_pool_stop (GST_BUFFER_POOL (pool));
+  if (pool->wl_pool) {
+    wl_shm_pool_destroy (pool->wl_pool);
+    pool->wl_pool = NULL;
+  }
 
   g_object_unref (pool->display);
 
@@ -182,9 +184,11 @@ gst_wayland_buffer_pool_stop (GstBufferPool * pool)
   GST_DEBUG_OBJECT (self, "Stopping wayland buffer pool");
 
   munmap (self->data, self->size);
-  wl_shm_pool_destroy (self->wl_pool);
+  if (self->wl_pool) {
+    wl_shm_pool_destroy (self->wl_pool);
+    self->wl_pool = NULL;
+  }
 
-  self->wl_pool = NULL;
   self->size = 0;
   self->used = 0;
 
