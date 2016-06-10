@@ -3656,6 +3656,7 @@ tests/examples/mxf/Makefile
 tests/examples/opencv/Makefile
 tests/examples/uvch264/Makefile
 tests/examples/waylandsink/Makefile
+tests/examples/wayland/Makefile
 tests/icles/Makefile
 ext/voamrwbenc/Makefile
 ext/voaacenc/Makefile
