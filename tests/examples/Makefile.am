@@ -63,4 +63,14 @@ SUBDIRS= codecparsers mpegts $(DIRECTFB_DIR) $(GTK_EXAMPLES) $(OPENCV_EXAMPLES) 
 DIST_SUBDIRS= codecparsers mpegts camerabin2 directfb mxf opencv uvch264 gl gtk \
         avsamplesink waylandsink audiomixmatrix
 
+if USE_WAYLAND
+WAYLAND_DIR=wayland
+else
+WAYLAND_DIR=
+endif
+
+SUBDIRS= mpegts $(DIRECTFB_DIR) $(GTK_EXAMPLES) $(OPENCV_EXAMPLES) $(GL_DIR) \
+	$(WAYLAND_DIR)
+DIST_SUBDIRS= mpegts camerabin2 directfb mxf opencv uvch264 gl wayland
+
 include $(top_srcdir)/common/parallel-subdirs.mak
