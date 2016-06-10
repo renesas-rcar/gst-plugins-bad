@@ -19,4 +19,10 @@ if use_wayland
     dependencies : [gst_dep, gstwayland_dep, wl_client_dep],
     c_args : gst_plugins_bad_args + ['-DGST_USE_UNSTABLE_API'],
   )
+  executable('gst_wayland_demo',
+    'gst-wayland-demo.c',
+    install: false,
+    include_directories : [configinc],
+    dependencies : [gst_dep, gstwayland_dep, gstvideo_dep],
+  )
 endif
