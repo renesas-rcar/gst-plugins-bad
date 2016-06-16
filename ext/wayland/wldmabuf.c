@@ -29,6 +29,9 @@
 #include "wlvideoformat.h"
 #include "linux-dmabuf-client-protocol.h"
 
+GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
+#define GST_CAT_DEFAULT gstwayland_debug
+
 typedef struct
 {
   GMutex lock;
