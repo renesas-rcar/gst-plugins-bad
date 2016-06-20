@@ -24,16 +24,16 @@
 #include <gst/gst.h>
 #include <wayland-client.h>
 #include "scaler-client-protocol.h"
-#include "linux-dmabuf-client-protocol.h"
+#include "linux-dmabuf-unstable-v1-client-protocol.h"
 
 G_BEGIN_DECLS
-
 #define GST_TYPE_WL_DISPLAY                  (gst_wl_display_get_type ())
 #define GST_WL_DISPLAY(obj)                  (G_TYPE_CHECK_INSTANCE_CAST ((obj), GST_TYPE_WL_DISPLAY, GstWlDisplay))
 #define GST_IS_WL_DISPLAY(obj)               (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_WL_DISPLAY))
 #define GST_WL_DISPLAY_CLASS(klass)          (G_TYPE_CHECK_CLASS_CAST ((klass), GST_TYPE_WL_DISPLAY, GstWlDisplayClass))
 #define GST_IS_WL_DISPLAY_CLASS(klass)       (G_TYPE_CHECK_CLASS_TYPE ((klass), GST_TYPE_WL_DISPLAY))
 #define GST_WL_DISPLAY_GET_CLASS(obj)        (G_TYPE_INSTANCE_GET_CLASS ((obj), GST_TYPE_WL_DISPLAY, GstWlDisplayClass))
+#define GST_WAYLAND_DISPLAY_CONTEXT_TYPE "GstWaylandDisplayContextType"
 
 typedef struct _GstWlDisplay GstWlDisplay;
 typedef struct _GstWlDisplayClass GstWlDisplayClass;
@@ -52,7 +52,7 @@ struct _GstWlDisplay
   struct wl_subcompositor *subcompositor;
   struct wl_shell *shell;
   struct wl_shm *shm;
-  struct zlinux_dmabuf *dmabuf;
+  struct zwp_linux_dmabuf_v1 *dmabuf;
   struct wl_scaler *scaler;
   GArray *formats;
   GArray *dmabuf_formats;
@@ -83,5 +83,4 @@ void gst_wl_display_register_buffer (GstWlDisplay * self, gpointer buf);
 void gst_wl_display_unregister_buffer (GstWlDisplay * self, gpointer buf);
 
 G_END_DECLS
-
 #endif /* __GST_WL_DISPLAY_H__ */

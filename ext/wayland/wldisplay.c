@@ -80,7 +80,7 @@ gst_wl_display_finalize (GObject * gobject)
     wl_shm_destroy (self->shm);
 
   if (self->dmabuf)
-    zlinux_dmabuf_destroy (self->dmabuf);
+    zwp_linux_dmabuf_v1_destroy (self->dmabuf);
 
   if (self->shell)
     wl_shell_destroy (self->shell);
@@ -149,14 +149,14 @@ static const struct wl_shm_listener shm_listener = {
 };
 
 static void
-dmabuf_format (void *data, struct zlinux_dmabuf *dmabuf, uint32_t format)
+dmabuf_format (void *data, struct zwp_linux_dmabuf_v1 *dmabuf, uint32_t format)
 {
   GstWlDisplay *self = data;
 
   g_array_append_val (self->dmabuf_formats, format);
 }
 
-static const struct zlinux_dmabuf_listener dmabuf_listener = {
+static const struct zwp_linux_dmabuf_v1_listener dmabuf_listener = {
   dmabuf_format
 };
 
@@ -179,9 +179,10 @@ registry_handle_global (void *data, struct wl_registry *registry,
     wl_shm_add_listener (self->shm, &shm_listener, self);
   } else if (g_strcmp0 (interface, "wl_scaler") == 0) {
     self->scaler = wl_registry_bind (registry, id, &wl_scaler_interface, 2);
-  } else if (g_strcmp0 (interface, "zlinux_dmabuf") == 0) {
-    self->dmabuf = wl_registry_bind (registry, id, &zlinux_dmabuf_interface, 1);
-    zlinux_dmabuf_add_listener (self->dmabuf, &dmabuf_listener, self);
+  } else if (g_strcmp0 (interface, "zwp_linux_dmabuf_v1") == 0) {
+    self->dmabuf =
+        wl_registry_bind (registry, id, &zwp_linux_dmabuf_v1_interface, 1);
+    zwp_linux_dmabuf_v1_add_listener (self->dmabuf, &dmabuf_listener, self);
   }
 }
 
