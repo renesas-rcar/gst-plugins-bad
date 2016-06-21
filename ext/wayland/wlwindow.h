@@ -68,7 +68,7 @@ GType gst_wl_window_get_type (void);
 GstWlWindow *gst_wl_window_new_toplevel (GstWlDisplay * display,
         const GstVideoInfo * info);
 GstWlWindow *gst_wl_window_new_in_surface (GstWlDisplay * display,
-        struct wl_surface * parent);
+        struct wl_surface * parent, gboolean use_subsurface);
 
 GstWlDisplay *gst_wl_window_get_display (GstWlWindow * window);
 struct wl_surface *gst_wl_window_get_wl_surface (GstWlWindow * window);

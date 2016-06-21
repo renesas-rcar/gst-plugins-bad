@@ -66,6 +66,8 @@ struct _GstWaylandSink
   GMutex render_lock;
   GstBuffer *last_buffer;
 
+  gboolean use_subsurface;
+
   struct wl_event_queue *frame_queue;
 };
 

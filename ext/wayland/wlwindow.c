@@ -75,9 +75,11 @@ static void
 gst_wl_window_finalize (GObject * gobject)
 {
   GstWlWindow *self = GST_WL_WINDOW (gobject);
+  gboolean need_destroy = FALSE;
 
   if (self->shell_surface) {
     wl_shell_surface_destroy (self->shell_surface);
+    need_destroy |= TRUE;
   }
 
   wl_viewport_destroy (self->video_viewport);
@@ -86,9 +88,11 @@ gst_wl_window_finalize (GObject * gobject)
 
   if (self->area_subsurface) {
     wl_subsurface_destroy (self->area_subsurface);
+    need_destroy |= TRUE;
   }
   wl_viewport_destroy (self->area_viewport);
-  wl_surface_destroy (self->area_surface);
+  if (need_destroy)
+    wl_surface_destroy (self->area_surface);
 
   g_clear_object (&self->display);
 
@@ -196,10 +200,12 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info)
 
 GstWlWindow *
 gst_wl_window_new_in_surface (GstWlDisplay * display,
-    struct wl_surface * parent)
+    struct wl_surface * parent, gboolean use_subsurface)
 {
   GstWlWindow *window;
   window = gst_wl_window_new_internal (display);
+  if (!use_subsurface)
+    return window;
 
   /* embed in parent */
   window->area_subsurface =
