@@ -73,17 +73,22 @@ static void
 gst_wl_window_finalize (GObject * gobject)
 {
   GstWlWindow *self = GST_WL_WINDOW (gobject);
+  gboolean need_destroy = FALSE;
 
   if (self->shell_surface) {
     wl_shell_surface_destroy (self->shell_surface);
+    need_destroy |= TRUE;
   }
 
   if (self->subsurface) {
     wl_subsurface_destroy (self->subsurface);
+    need_destroy |= TRUE;
   }
 
   wl_viewport_destroy (self->viewport);
-  wl_surface_destroy (self->surface);
+  /* Don't destroy an externally-supplied surface. */
+  if (need_destroy)
+    wl_surface_destroy (self->surface);
 
   g_clear_object (&self->display);
 
@@ -146,9 +151,12 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, GstVideoInfo * video_info)
 
 GstWlWindow *
 gst_wl_window_new_in_surface (GstWlDisplay * display,
-    struct wl_surface * parent)
+    struct wl_surface * parent, gboolean use_subsurface)
 {
   GstWlWindow *window;
+
+  if (!use_subsurface)
+    return gst_wl_window_new_internal (display, parent);
 
   window = gst_wl_window_new_internal (display,
       wl_compositor_create_surface (display->compositor));

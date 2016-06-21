@@ -61,8 +61,11 @@ enum
 enum
 {
   PROP_0,
-  PROP_DISPLAY
+  PROP_DISPLAY,
+  PROP_USE_SUBSURFACE
 };
+
+#define DEFAULT_USE_SUBSURFACE          TRUE
 
 GST_DEBUG_CATEGORY (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
@@ -159,6 +162,12 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
       g_param_spec_string ("display", "Wayland Display name", "Wayland "
           "display name to connect to, if not supplied via the GstContext",
           NULL, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_USE_SUBSURFACE,
+      g_param_spec_boolean ("use-subsurface", "Use Subsurface",
+          "When disabled, a subsurface will not be created from "
+          "an externally-supplied surface (e.g. needed for scanout when "
+          "the application's surface is fullscreen)",
+          DEFAULT_USE_SUBSURFACE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 static void
@@ -166,6 +175,8 @@ gst_wayland_sink_init (GstWaylandSink * sink)
 {
   g_mutex_init (&sink->display_lock);
   g_mutex_init (&sink->render_lock);
+
+  sink->use_subsurface = DEFAULT_USE_SUBSURFACE;
 }
 
 static void
@@ -179,6 +190,9 @@ gst_wayland_sink_get_property (GObject * object,
       GST_OBJECT_LOCK (sink);
       g_value_set_string (value, sink->display_name);
       GST_OBJECT_UNLOCK (sink);
+      break;
+    case PROP_USE_SUBSURFACE:
+      g_value_set_boolean (value, sink->use_subsurface);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -197,6 +211,9 @@ gst_wayland_sink_set_property (GObject * object,
       GST_OBJECT_LOCK (sink);
       sink->display_name = g_value_dup_string (value);
       GST_OBJECT_UNLOCK (sink);
+      break;
+    case PROP_USE_SUBSURFACE:
+      sink->use_subsurface = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -809,7 +826,8 @@ gst_wayland_sink_set_window_handle (GstVideoOverlay * overlay, guintptr handle)
                 "an externally-supplied display handle. Consider providing a "
                 "display handle from your application with GstContext"));
       } else {
-        sink->window = gst_wl_window_new_in_surface (sink->display, surface);
+        sink->window = gst_wl_window_new_in_surface (sink->display, surface,
+            sink->use_subsurface);
       }
     } else {
       GST_ERROR_OBJECT (sink, "Failed to find display handle, "
