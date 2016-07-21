@@ -64,6 +64,8 @@ typedef struct
   struct wl_surface *focused_surface;
   gint min_refresh;
   gint64 frame_cnt;
+
+  guint signal_watch_id;
 } GstWlDemo;
 
 static void
@@ -651,7 +653,9 @@ sigint_handler (gpointer user_data)
           gst_structure_new ("GstWaylandDemoInterrupt", "message",
               G_TYPE_STRING, "Pipeline interrupted", NULL)));
 
-  return TRUE;
+  priv->signal_watch_id = 0;
+
+  return FALSE;
 }
 
 static void
@@ -692,7 +696,6 @@ main (int argc, char **argv)
   gchar *elem_name;
   gchar *pad_name;
   gdouble elapsed;
-  static guint signal_watch_id;
   gchar **argvn;
   gint i;
   int ret = EXIT_FAILURE;
@@ -741,8 +744,8 @@ main (int argc, char **argv)
     return EXIT_FAILURE;
   }
 
-  signal_watch_id = g_unix_signal_add (SIGINT, (GSourceFunc) sigint_handler,
-      priv);
+  priv->signal_watch_id =
+      g_unix_signal_add (SIGINT, (GSourceFunc) sigint_handler, priv);
 
   bus = gst_pipeline_get_bus (GST_PIPELINE (priv->pipeline));
   gst_bus_set_sync_handler (bus, bus_sync_handler, priv, NULL);
@@ -874,7 +877,8 @@ leave:
     wl_display_disconnect (priv->display);
 
   g_source_remove (bus_watch_id);
-  g_source_remove (signal_watch_id);
+  if (priv->signal_watch_id > 0)
+    g_source_remove (priv->signal_watch_id);
   g_main_loop_unref (priv->loop);
   g_slice_free (GstWlDemo, priv);
 
