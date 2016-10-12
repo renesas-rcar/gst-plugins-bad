@@ -43,7 +43,7 @@ typedef struct _GstWlDisplayClass GstWlDisplayClass;
 
 struct _GstWlDisplay
 {
-  GObject parent_instance;
+  GstObject parent_instance;
 
   /* public objects */
   struct wl_display *display;
@@ -75,7 +75,7 @@ struct _GstWlDisplay
 
 struct _GstWlDisplayClass
 {
-  GObjectClass parent_class;
+  GstObjectClass parent_class;
 };
 
 GType gst_wl_display_get_type (void);
