@@ -30,7 +30,7 @@
 GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
 
-G_DEFINE_TYPE (GstWlDisplay, gst_wl_display, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GstWlDisplay, gst_wl_display, GST_TYPE_OBJECT);
 
 static void gst_wl_display_finalize (GObject * gobject);
 
