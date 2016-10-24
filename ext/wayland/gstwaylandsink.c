@@ -330,6 +330,7 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
       if (!gst_wayland_sink_find_display (sink))
         return GST_STATE_CHANGE_FAILURE;
 
+      g_atomic_int_set (&sink->redraw_pending, FALSE);
       /* the event queue specific for wl_surface_frame events */
       sink->frame_queue = wl_display_create_queue (sink->display->display);
       if (!sink->frame_queue) {
