@@ -94,11 +94,11 @@ static void gst_wayland_sink_set_context (GstElement * element,
 static GstCaps *gst_wayland_sink_get_caps (GstBaseSink * bsink,
     GstCaps * filter);
 static gboolean gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps);
-static gboolean gst_wayland_sink_preroll (GstBaseSink * bsink,
+static GstFlowReturn gst_wayland_sink_preroll (GstBaseSink * bsink,
     GstBuffer * buffer);
 static gboolean
 gst_wayland_sink_propose_allocation (GstBaseSink * bsink, GstQuery * query);
-static gboolean gst_wayland_sink_render (GstBaseSink * bsink,
+static GstFlowReturn gst_wayland_sink_render (GstBaseSink * bsink,
     GstBuffer * buffer);
 
 /* VideoOverlay interface */
