@@ -105,7 +105,6 @@ gst_wl_window_new_internal (GstWlDisplay * display)
   GstWlWindow *window;
   GstVideoInfo info;
   GstBuffer *buf;
-  GstMapInfo mapinfo;
   struct wl_buffer *wlbuf;
   GstWlBuffer *gwlbuf;
   struct wl_region *region;
@@ -139,12 +138,10 @@ gst_wl_window_new_internal (GstWlDisplay * display)
 #else
       GST_VIDEO_FORMAT_BGRx,
 #endif
-      1, 1);
+      2, 2);
 
   buf = gst_buffer_new_allocate (gst_wl_shm_allocator_get (), info.size, NULL);
-  gst_buffer_map (buf, &mapinfo, GST_MAP_WRITE);
-  *((guint32 *) mapinfo.data) = 0;      /* paint it black */
-  gst_buffer_unmap (buf, &mapinfo);
+  gst_buffer_memset (buf, 0, 0, info.size);     /* paint it black */
   wlbuf =
       gst_wl_shm_memory_construct_wl_buffer (gst_buffer_peek_memory (buf, 0),
       display, &info);
