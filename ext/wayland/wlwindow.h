@@ -56,6 +56,7 @@ struct _GstWlWindow
   gint video_width, video_height;
   /* the size of the video_(sub)surface */
   gint surface_width, surface_height;
+  gboolean use_subsurface;
 };
 
 struct _GstWlWindowClass
@@ -66,7 +67,7 @@ struct _GstWlWindowClass
 GType gst_wl_window_get_type (void);
 
 GstWlWindow *gst_wl_window_new_toplevel (GstWlDisplay * display,
-        const GstVideoInfo * info);
+        const GstVideoInfo * info, gboolean use_subsurface);
 GstWlWindow *gst_wl_window_new_in_surface (GstWlDisplay * display,
         struct wl_surface * parent, gboolean use_subsurface);
 

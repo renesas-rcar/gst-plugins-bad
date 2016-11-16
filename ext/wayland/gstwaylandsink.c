@@ -639,7 +639,8 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
     if (!sink->window) {
       /* if we were not provided a window, create one ourselves */
       sink->window =
-          gst_wl_window_new_toplevel (sink->display, &sink->video_info);
+          gst_wl_window_new_toplevel (sink->display, &sink->video_info,
+          sink->use_subsurface);
     }
   }
 
