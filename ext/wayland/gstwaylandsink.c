@@ -624,6 +624,7 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
   GstWlBuffer *wlbuffer;
   GstFlowReturn ret = GST_FLOW_OK;
   gint redraw_flag;
+  struct wl_region *region;
 
   g_mutex_lock (&sink->render_lock);
 
@@ -641,6 +642,13 @@ gst_wayland_sink_render (GstBaseSink * bsink, GstBuffer * buffer)
       sink->window =
           gst_wl_window_new_toplevel (sink->display, &sink->video_info,
           sink->use_subsurface);
+    }
+    if (!GST_VIDEO_INFO_HAS_ALPHA (&sink->video_info)) {
+      region = wl_compositor_create_region (sink->display->compositor);
+      wl_region_add (region, 0, 0,
+          sink->video_info.width, sink->video_info.height);
+      wl_surface_set_opaque_region (sink->window->video_surface, region);
+      wl_region_destroy (region);
     }
   }
 
