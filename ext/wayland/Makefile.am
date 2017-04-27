@@ -1,5 +1,9 @@
 plugin_LTLIBRARIES = libgstwaylandsink.la
 
+BUILT_SOURCES = \
+	scaler-protocol.c scaler-client-protocol.h \
+	linux-dmabuf-client-protocol.c linux-dmabuf-client-protocol.h
+
 libgstwaylandsink_la_SOURCES =  \
 	gstwaylandsink.c \
 	waylandpool.c \
@@ -34,9 +38,7 @@ noinst_HEADERS = \
 	linux-dmabuf-client-protocol.h
 
 EXTRA_DIST = scaler.xml
-CLEANFILES = scaler-protocol.c scaler-client-protocol.h \
-	linux-dmabuf-protocol.c \
-	linux-dmabuf-client-protocol.h
+CLEANFILES = $(BUILT_SOURCES)
 
 WAYLAND_GEN_PROTOCOL_CODE = $(wayland_scanner) code < $< > $@
 WAYLAND_GEN_PROTOCOL_HEADER = $(wayland_scanner) client-header < $< > $@
@@ -52,15 +54,3 @@ scaler-protocol.c : scaler.xml
 
 scaler-client-protocol.h : scaler.xml
 	$(WAYLAND_GEN_PROTOCOL_HEADER)
-
-gstwaylandsink.c: scaler-client-protocol.h
-
-waylandpool.c: scaler-client-protocol.h
-
-wlbuffer.c: scaler-client-protocol.h
-
-wldisplay.c: scaler-client-protocol.h linux-dmabuf-client-protocol.h
-
-wlwindow.c: scaler-client-protocol.h
-
-wldmabuf.c: linux-dmabuf-client-protocol.h
