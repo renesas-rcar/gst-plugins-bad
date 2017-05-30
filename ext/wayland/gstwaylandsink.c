@@ -393,9 +393,13 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
 
   sink = GST_WAYLAND_SINK (bsink);
 
+  /* weston has not implemented the zlinux_dmabuf format listener,
+     so negotiate with the upstream by the template caps. */
   caps = gst_pad_get_pad_template_caps (GST_VIDEO_SINK_PAD (sink));
   caps = gst_caps_make_writable (caps);
 
+//Disable until a zlinux_dmabuf format listener exists
+# if 0
   g_mutex_lock (&sink->display_lock);
 
   if (sink->display) {
@@ -436,7 +440,7 @@ gst_wayland_sink_get_caps (GstBaseSink * bsink, GstCaps * filter)
   }
 
   g_mutex_unlock (&sink->display_lock);
-
+#endif
   if (filter) {
     GstCaps *intersection;
 
@@ -477,6 +481,7 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   GstWaylandSink *sink;
   gboolean use_dmabuf;
   GstVideoFormat format;
+  uint32_t dmabuf_format;
 
   sink = GST_WAYLAND_SINK (bsink);
 
@@ -488,6 +493,8 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
 
   format = GST_VIDEO_INFO_FORMAT (&sink->video_info);
   sink->video_info_changed = TRUE;
+  dmabuf_format = gst_video_format_to_wl_dmabuf_format (format);
+  g_array_append_val (sink->display->dmabuf_formats, dmabuf_format);
 
   /* create a new pool for the new caps */
   if (sink->pool)
@@ -497,6 +504,10 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   use_dmabuf = gst_caps_features_contains (gst_caps_get_features (caps, 0),
       GST_CAPS_FEATURE_MEMORY_DMABUF);
 
+# if 0
+  /* As with get_caps, since there is no way to check the
+     supported formats on zlinux_dmabuf the check will always
+     fail, so disable it */
   /* validate the format base on the memory type. */
   if (use_dmabuf) {
     if (!gst_wl_display_check_format_for_dmabuf (sink->display, format))
@@ -504,6 +515,7 @@ gst_wayland_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   } else if (!gst_wl_display_check_format_for_shm (sink->display, format)) {
     goto unsupported_format;
   }
+# endif
 
   sink->use_dmabuf = use_dmabuf;
 
@@ -515,12 +527,14 @@ invalid_format:
         "Could not locate image format from caps %" GST_PTR_FORMAT, caps);
     return FALSE;
   }
+#if 0
 unsupported_format:
   {
     GST_ERROR_OBJECT (sink, "Format %s is not available on the display",
         gst_video_format_to_string (format));
     return FALSE;
   }
+# endif
 }
 
 static gboolean
