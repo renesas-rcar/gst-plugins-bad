@@ -56,7 +56,8 @@ GType gst_wl_buffer_get_type (void);
 
 GstWlBuffer * gst_buffer_add_wl_buffer (GstBuffer * gstbuffer,
     struct wl_buffer * wlbuffer, GstWlDisplay * display);
-GstWlBuffer * gst_buffer_get_wl_buffer (GstBuffer * gstbuffer);
+GstWlBuffer * gst_buffer_get_wl_buffer (GstBuffer * gstbuffer,
+    GstWlDisplay * display);
 
 void gst_wl_buffer_force_release_and_unref (GstWlBuffer * self);
 
