@@ -83,8 +83,6 @@ GST_DEBUG_CATEGORY_EXTERN (gstwayland_debug);
 
 G_DEFINE_TYPE (GstWlBuffer, gst_wl_buffer, G_TYPE_OBJECT);
 
-static G_DEFINE_QUARK (GstWlBufferQDataQuark, gst_wl_buffer_qdata);
-
 static void
 gst_wl_buffer_dispose (GObject * gobject)
 {
@@ -175,16 +173,17 @@ gst_buffer_add_wl_buffer (GstBuffer * gstbuffer, struct wl_buffer *wlbuffer,
   wl_buffer_add_listener (self->wlbuffer, &buffer_listener, self);
 
   gst_mini_object_set_qdata ((GstMiniObject *) gstbuffer,
-      gst_wl_buffer_qdata_quark (), self, (GDestroyNotify) gstbuffer_disposed);
+      g_quark_from_string (GST_OBJECT_NAME (display)), self,
+      (GDestroyNotify) gstbuffer_disposed);
 
   return self;
 }
 
 GstWlBuffer *
-gst_buffer_get_wl_buffer (GstBuffer * gstbuffer)
+gst_buffer_get_wl_buffer (GstBuffer * gstbuffer, GstWlDisplay * display)
 {
   return gst_mini_object_get_qdata ((GstMiniObject *) gstbuffer,
-      gst_wl_buffer_qdata_quark ());
+      g_quark_from_string (GST_OBJECT_NAME (display)));
 }
 
 void
