@@ -65,6 +65,9 @@ struct _GstWlWindow
    * already been set on the area_subsurface */
   gboolean no_border_update;
 
+  /* the size of the video_(sub)surface */
+  gint surface_width, surface_height;
+  gboolean use_subsurface;
 };
 
 struct _GstWlWindowClass
@@ -75,9 +78,9 @@ struct _GstWlWindowClass
 GType gst_wl_window_get_type (void);
 
 GstWlWindow *gst_wl_window_new_toplevel (GstWlDisplay * display,
-        const GstVideoInfo * info, GMutex * render_lock);
+        const GstVideoInfo * info, GMutex * render_lock, gboolean use_subsurface);
 GstWlWindow *gst_wl_window_new_in_surface (GstWlDisplay * display,
-        struct wl_surface * parent, GMutex * render_lock);
+        struct wl_surface * parent, GMutex * render_lock, gboolean use_subsurface);
 
 GstWlDisplay *gst_wl_window_get_display (GstWlWindow * window);
 struct wl_surface *gst_wl_window_get_wl_surface (GstWlWindow * window);
