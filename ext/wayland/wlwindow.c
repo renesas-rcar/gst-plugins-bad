@@ -85,21 +85,28 @@ static void
 gst_wl_window_finalize (GObject * gobject)
 {
   GstWlWindow *self = GST_WL_WINDOW (gobject);
+  gboolean need_destroy = FALSE;
 
-  if (self->shell_surface)
+  if (self->shell_surface) {
     wl_shell_surface_destroy (self->shell_surface);
+    need_destroy |= TRUE;
+  }
 
   if (self->video_viewport)
     wp_viewport_destroy (self->video_viewport);
 
-  wl_subsurface_destroy (self->video_subsurface);
-  wl_surface_destroy (self->video_surface);
+  if (self->area_viewport)
+    wp_viewport_destroy (self->area_viewport);
+
+  if (self->use_subsurface) {
+    wl_subsurface_destroy (self->video_subsurface);
+    need_destroy |= TRUE;
+  }
+  if (need_destroy)
+    wl_surface_destroy (self->video_surface);
 
   if (self->area_subsurface)
     wl_subsurface_destroy (self->area_subsurface);
-
-  if (self->area_viewport)
-    wp_viewport_destroy (self->area_viewport);
 
   wl_surface_destroy (self->area_surface);
 
@@ -109,7 +116,8 @@ gst_wl_window_finalize (GObject * gobject)
 }
 
 static GstWlWindow *
-gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
+gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock,
+    struct wl_surface *parent, gboolean use_subsurface)
 {
   GstWlWindow *window;
   struct wl_region *region;
@@ -117,19 +125,24 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
   window = g_object_new (GST_TYPE_WL_WINDOW, NULL);
   window->display = g_object_ref (display);
   window->render_lock = render_lock;
+  window->use_subsurface = use_subsurface;
 
   window->area_surface = wl_compositor_create_surface (display->compositor);
-  window->video_surface = wl_compositor_create_surface (display->compositor);
+  window->video_surface = (parent
+      && !use_subsurface) ? parent :
+      wl_compositor_create_surface (display->compositor);
 
   wl_proxy_set_queue ((struct wl_proxy *) window->area_surface, display->queue);
   wl_proxy_set_queue ((struct wl_proxy *) window->video_surface,
       display->queue);
 
-  /* embed video_surface in area_surface */
-  window->video_subsurface =
-      wl_subcompositor_get_subsurface (display->subcompositor,
-      window->video_surface, window->area_surface);
-  wl_subsurface_set_desync (window->video_subsurface);
+  if (use_subsurface) {
+    /* embed video_surface in area_surface */
+    window->video_subsurface =
+        wl_subcompositor_get_subsurface (display->subcompositor,
+        window->video_surface, window->area_surface);
+    wl_subsurface_set_desync (window->video_subsurface);
+  }
 
   if (display->viewporter) {
     window->area_viewport = wp_viewporter_get_viewport (display->viewporter,
@@ -152,16 +165,17 @@ gst_wl_window_new_internal (GstWlDisplay * display, GMutex * render_lock)
 
 GstWlWindow *
 gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
-    GMutex * render_lock)
+    GMutex * render_lock, gboolean use_subsurface)
 {
   GstWlWindow *window;
   gint width;
 
-  window = gst_wl_window_new_internal (display, render_lock);
+  window =
+      gst_wl_window_new_internal (display, render_lock, NULL, use_subsurface);
 
   /* go toplevel */
   window->shell_surface = wl_shell_get_shell_surface (display->shell,
-      window->area_surface);
+      use_subsurface ? window->area_surface : window->video_surface);
 
   if (window->shell_surface) {
     wl_shell_surface_add_listener (window->shell_surface,
@@ -184,10 +198,13 @@ gst_wl_window_new_toplevel (GstWlDisplay * display, const GstVideoInfo * info,
 
 GstWlWindow *
 gst_wl_window_new_in_surface (GstWlDisplay * display,
-    struct wl_surface * parent, GMutex * render_lock)
+    struct wl_surface * parent, GMutex * render_lock, gboolean use_subsurface)
 {
   GstWlWindow *window;
-  window = gst_wl_window_new_internal (display, render_lock);
+  window =
+      gst_wl_window_new_internal (display, render_lock, parent, use_subsurface);
+  if (!use_subsurface)
+    return window;
 
   /* embed in parent */
   window->area_subsurface =
@@ -242,7 +259,8 @@ gst_wl_window_resize_video_surface (GstWlWindow * window, gboolean commit)
     gst_video_sink_center_rect (src, dst, &res, FALSE);
   }
 
-  wl_subsurface_set_position (window->video_subsurface, res.x, res.y);
+  if (window->use_subsurface)
+    wl_subsurface_set_position (window->video_subsurface, res.x, res.y);
 
   if (commit) {
     wl_surface_damage (window->video_surface, 0, 0, res.w, res.h);
@@ -294,7 +312,8 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
         gst_util_uint64_scale_int_round (info->width, info->par_n, info->par_d);
     window->video_height = info->height;
 
-    wl_subsurface_set_sync (window->video_subsurface);
+    if (window->use_subsurface)
+      wl_subsurface_set_sync (window->video_subsurface);
     gst_wl_window_resize_video_surface (window, FALSE);
     gst_wl_window_set_opaque (window, info);
   }
@@ -314,7 +333,8 @@ gst_wl_window_render (GstWlWindow * window, GstWlBuffer * buffer,
     wl_surface_damage (window->area_surface, 0, 0, window->render_rectangle.w,
         window->render_rectangle.h);
     wl_surface_commit (window->area_surface);
-    wl_subsurface_set_desync (window->video_subsurface);
+    if (window->use_subsurface)
+      wl_subsurface_set_desync (window->video_subsurface);
   }
 
   wl_display_flush (window->display->display);
@@ -389,13 +409,14 @@ gst_wl_window_set_render_rectangle (GstWlWindow * window, gint x, gint y,
   gst_wl_window_update_borders (window);
 
   if (window->video_width != 0) {
-    wl_subsurface_set_sync (window->video_subsurface);
+    if (window->use_subsurface)
+      wl_subsurface_set_sync (window->video_subsurface);
     gst_wl_window_resize_video_surface (window, TRUE);
   }
 
   wl_surface_damage (window->area_surface, 0, 0, w, h);
   wl_surface_commit (window->area_surface);
 
-  if (window->video_width != 0)
+  if (window->video_width != 0 && window->use_subsurface)
     wl_subsurface_set_desync (window->video_subsurface);
 }
