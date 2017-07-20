@@ -97,6 +97,9 @@ gst_wl_display_finalize (GObject * gobject)
   if (self->queue)
     wl_event_queue_destroy (self->queue);
 
+  if (self->scaler)
+    wl_scaler_destroy (self->scaler);
+
   if (self->own_display) {
     wl_display_flush (self->display);
     wl_display_disconnect (self->display);
