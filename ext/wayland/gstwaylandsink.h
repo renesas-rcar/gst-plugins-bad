@@ -68,6 +68,7 @@ struct _GstWaylandSink
   GstBuffer *last_buffer;
 
   struct wl_event_queue *frame_queue;
+  struct wl_callback *callback;
   gboolean use_subsurface;
 };
 
