@@ -411,11 +411,13 @@ gst_wayland_sink_change_state (GstElement * element, GstStateChange transition)
        * restarted (GstVideoOverlay behaves like that in other sinks)
        */
       if (sink->display && !sink->window) {     /* -> the window was toplevel */
-        wl_event_queue_destroy (sink->frame_queue);
-        g_clear_object (&sink->display);
         g_mutex_lock (&sink->render_lock);
+        if (sink->redraw_pending == TRUE)
+          wl_callback_destroy (sink->callback);
         sink->redraw_pending = FALSE;
         g_mutex_unlock (&sink->render_lock);
+        wl_event_queue_destroy (sink->frame_queue);
+        g_clear_object (&sink->display);
       }
       g_mutex_unlock (&sink->display_lock);
       g_clear_object (&sink->pool);
@@ -640,15 +642,14 @@ render_last_buffer (GstWaylandSink * sink, gboolean redraw)
   GstWlBuffer *wlbuffer;
   const GstVideoInfo *info = NULL;
   struct wl_surface *surface;
-  struct wl_callback *callback;
 
   wlbuffer = gst_buffer_get_wl_buffer (sink->last_buffer, sink->display);
   surface = gst_wl_window_get_wl_surface (sink->window);
 
   sink->redraw_pending = TRUE;
-  callback = wl_surface_frame (surface);
-  wl_proxy_set_queue ((struct wl_proxy *) callback, sink->frame_queue);
-  wl_callback_add_listener (callback, &frame_callback_listener, sink);
+  sink->callback = wl_surface_frame (surface);
+  wl_proxy_set_queue ((struct wl_proxy *) sink->callback, sink->frame_queue);
+  wl_callback_add_listener (sink->callback, &frame_callback_listener, sink);
 
   if (G_UNLIKELY (sink->video_info_changed && !redraw)) {
     info = &sink->video_info;
