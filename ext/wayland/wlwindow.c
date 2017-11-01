@@ -352,6 +352,7 @@ gst_wl_window_update_borders (GstWlWindow * window)
   GstBuffer *buf;
   struct wl_buffer *wlbuf;
   GstWlBuffer *gwlbuf;
+  GstAllocator *alloc;
 
   if (window->no_border_update)
     return;
@@ -374,7 +375,10 @@ gst_wl_window_update_borders (GstWlWindow * window)
   /* draw the area_subsurface */
   gst_video_info_set_format (&info, format, width, height);
 
-  buf = gst_buffer_new_allocate (gst_wl_shm_allocator_get (), info.size, NULL);
+  alloc = gst_wl_shm_allocator_get ();
+
+  buf = gst_buffer_new_allocate (alloc, info.size, NULL);
+  g_object_unref (alloc);
   gst_buffer_memset (buf, 0, 0, info.size);
   wlbuf =
       gst_wl_shm_memory_construct_wl_buffer (gst_buffer_peek_memory (buf, 0),
