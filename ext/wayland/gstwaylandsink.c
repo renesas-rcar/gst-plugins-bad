@@ -4,6 +4,7 @@
  * Copyright (C) 2011 Sreerenj Balachandran <sreerenj.balachandran@intel.com>
  * Copyright (C) 2012 Wim Taymans <wim.taymans@gmail.com>
  * Copyright (C) 2014 Collabora Ltd.
+ * Copyright (C) 2017 Renesas Electronics Corporation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
