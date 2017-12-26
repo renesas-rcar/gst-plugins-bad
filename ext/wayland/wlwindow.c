@@ -359,7 +359,7 @@ gst_wl_window_update_borders (GstWlWindow * window)
     return;
 
   if (window->display->viewporter) {
-    width = height = 1;
+    width = height = 2;
     window->no_border_update = TRUE;
   } else {
     width = window->render_rectangle.w;
