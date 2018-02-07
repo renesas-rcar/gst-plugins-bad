@@ -63,10 +63,13 @@ enum
 {
   PROP_0,
   PROP_DISPLAY,
-  PROP_USE_SUBSURFACE
+  PROP_USE_SUBSURFACE,
+  PROP_SUPPRESS_INTERLACE
 };
 
 #define DEFAULT_USE_SUBSURFACE          TRUE
+
+#define DEFAULT_SUPPRESS_INTERLACE      TRUE
 
 GST_DEBUG_CATEGORY (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
@@ -212,6 +215,11 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
           "an externally-supplied surface (e.g. needed for scanout when "
           "the application's surface is fullscreen)",
           DEFAULT_USE_SUBSURFACE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_SUPPRESS_INTERLACE,
+      g_param_spec_boolean ("suppress-interlace", "Suppress Interlace",
+          "When enabled, dmabuf are created without flag of interlaced buffer",
+          DEFAULT_SUPPRESS_INTERLACE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 }
 
 static void
@@ -221,6 +229,7 @@ gst_wayland_sink_init (GstWaylandSink * sink)
   g_mutex_init (&sink->render_lock);
 
   sink->use_subsurface = DEFAULT_USE_SUBSURFACE;
+  sink->enable_interlace = !DEFAULT_SUPPRESS_INTERLACE;
 }
 
 static void
@@ -237,6 +246,9 @@ gst_wayland_sink_get_property (GObject * object,
       break;
     case PROP_USE_SUBSURFACE:
       g_value_set_boolean (value, sink->use_subsurface);
+      break;
+    case PROP_SUPPRESS_INTERLACE:
+      g_value_set_boolean (value, !sink->enable_interlace);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -258,6 +270,9 @@ gst_wayland_sink_set_property (GObject * object,
       break;
     case PROP_USE_SUBSURFACE:
       sink->use_subsurface = g_value_get_boolean (value);
+      break;
+    case PROP_SUPPRESS_INTERLACE:
+      sink->enable_interlace = !g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -742,7 +757,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
 
     if (nb_dmabuf && (nb_dmabuf == gst_buffer_n_memory (buffer)))
       wbuf = gst_wl_linux_dmabuf_construct_wl_buffer (buffer, sink->display,
-          &sink->video_info);
+          &sink->video_info, sink->enable_interlace);
   }
 
   if (!wbuf && gst_wl_display_check_format_for_shm (sink->display, format)) {

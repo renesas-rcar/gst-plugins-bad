@@ -31,7 +31,7 @@ G_BEGIN_DECLS
 #endif
 
 struct wl_buffer * gst_wl_linux_dmabuf_construct_wl_buffer (GstBuffer * buf,
-    GstWlDisplay * display, const GstVideoInfo * info);
+    GstWlDisplay * display, const GstVideoInfo * info, gboolean enable_interlace);
 
 G_END_DECLS
 
