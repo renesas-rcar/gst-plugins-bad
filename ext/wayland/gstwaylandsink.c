@@ -64,10 +64,12 @@ enum
   PROP_0,
   PROP_DISPLAY,
   PROP_FULLSCREEN,
-  PROP_USE_SUBSURFACE
+  PROP_USE_SUBSURFACE,
+  PROP_SUPPRESS_INTERLACE
 };
 
 #define DEFAULT_USE_SUBSURFACE          TRUE
+#define DEFAULT_SUPPRESS_INTERLACE      TRUE
 
 GST_DEBUG_CATEGORY (gstwayland_debug);
 #define GST_CAT_DEFAULT gstwayland_debug
@@ -218,6 +220,12 @@ gst_wayland_sink_class_init (GstWaylandSinkClass * klass)
           "NOP and deprecated", DEFAULT_USE_SUBSURFACE,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_DEPRECATED));
 
+  g_object_class_install_property (gobject_class, PROP_SUPPRESS_INTERLACE,
+      g_param_spec_boolean ("suppress-interlace", "Suppress Interlace",
+          "When enabled, dmabuf are created without flag of interlaced buffer",
+          DEFAULT_SUPPRESS_INTERLACE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   gst_type_mark_as_plugin_api (GST_TYPE_WAYLAND_VIDEO, 0);
 }
 
@@ -228,6 +236,7 @@ gst_wayland_sink_init (GstWaylandSink * sink)
   g_mutex_init (&sink->render_lock);
 
   sink->use_subsurface = DEFAULT_USE_SUBSURFACE;
+  sink->enable_interlace = !DEFAULT_SUPPRESS_INTERLACE;
 }
 
 static void
@@ -263,6 +272,11 @@ gst_wayland_sink_get_property (GObject * object,
       g_value_set_boolean (value, sink->use_subsurface);
       GST_OBJECT_UNLOCK (sink);
       break;
+    case PROP_SUPPRESS_INTERLACE:
+      GST_OBJECT_LOCK (sink);
+      g_value_set_boolean (value, !sink->enable_interlace);
+      GST_OBJECT_UNLOCK (sink);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -290,6 +304,11 @@ gst_wayland_sink_set_property (GObject * object,
           "and this option is NOP");
       GST_OBJECT_LOCK (sink);
       sink->use_subsurface = g_value_get_boolean (value);
+      GST_OBJECT_UNLOCK (sink);
+      break;
+    case PROP_SUPPRESS_INTERLACE:
+      GST_OBJECT_LOCK (sink);
+      sink->enable_interlace = !g_value_get_boolean (value);
       GST_OBJECT_UNLOCK (sink);
       break;
     default:
@@ -794,7 +813,7 @@ gst_wayland_sink_show_frame (GstVideoSink * vsink, GstBuffer * buffer)
 
     if (nb_dmabuf && (nb_dmabuf == gst_buffer_n_memory (buffer)))
       wbuf = gst_wl_linux_dmabuf_construct_wl_buffer (buffer, sink->display,
-          &sink->video_info);
+          &sink->video_info, sink->enable_interlace);
   }
 
   if (!wbuf && gst_wl_display_check_format_for_shm (sink->display, format)) {
