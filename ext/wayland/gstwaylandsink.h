@@ -71,6 +71,7 @@ struct _GstWaylandSink
   struct wl_event_queue *frame_queue;
   struct wl_callback *callback;
   gboolean use_subsurface;
+  gboolean enable_interlace;
 };
 
 struct _GstWaylandSinkClass

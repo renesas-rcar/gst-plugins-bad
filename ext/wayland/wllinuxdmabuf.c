@@ -70,7 +70,8 @@ static const struct zwp_linux_buffer_params_v1_listener params_listener = {
 
 struct wl_buffer *
 gst_wl_linux_dmabuf_construct_wl_buffer (GstBuffer * buf,
-    GstWlDisplay * display, const GstVideoInfo * info)
+    GstWlDisplay * display, const GstVideoInfo * info,
+    gboolean enable_interlace)
 {
   GstMemory *mem;
   int format;
@@ -121,13 +122,15 @@ gst_wl_linux_dmabuf_construct_wl_buffer (GstBuffer * buf,
     }
   }
 
-  if (GST_BUFFER_FLAG_IS_SET (buf, GST_VIDEO_BUFFER_FLAG_INTERLACED)) {
-    GST_DEBUG_OBJECT (mem->allocator, "interlaced buffer");
-    flags = ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED;
+  if (enable_interlace) {
+    if (GST_BUFFER_FLAG_IS_SET (buf, GST_VIDEO_BUFFER_FLAG_INTERLACED)) {
+      GST_DEBUG_OBJECT (mem->allocator, "interlaced buffer");
+      flags = ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_INTERLACED;
 
-    if (!GST_BUFFER_FLAG_IS_SET (buf, GST_VIDEO_BUFFER_FLAG_TFF)) {
-      GST_DEBUG_OBJECT (mem->allocator, "with bottom field first");
-      flags |= ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST;
+      if (!GST_BUFFER_FLAG_IS_SET (buf, GST_VIDEO_BUFFER_FLAG_TFF)) {
+        GST_DEBUG_OBJECT (mem->allocator, "with bottom field first");
+        flags |= ZWP_LINUX_BUFFER_PARAMS_V1_FLAGS_BOTTOM_FIRST;
+      }
     }
   }
 
