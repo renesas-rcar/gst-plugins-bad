@@ -2,6 +2,7 @@
  *
  * Copyright (C) 2016 STMicroelectronics SA
  * Copyright (C) 2016 Fabien Dessenne <fabien.dessenne@st.com>
+ * Copyright (C) 2018 Renesas Electronics Corporation
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
