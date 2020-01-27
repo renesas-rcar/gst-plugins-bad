@@ -79,20 +79,21 @@ else
 endif
 
 if opencv_found
+  pkgconf_sysroot = run_command(python3, '-c', 'import os; print(os.environ.get("PKG_CONFIG_SYSROOT_DIR"))').stdout().strip()
   opencv_prefix = opencv_dep.get_pkgconfig_variable('prefix')
   gstopencv_cargs += ['-DOPENCV_PREFIX="' + opencv_prefix + '"']
 
   # Check the data dir used by opencv for its xml data files
   # Use prefix from pkg-config to be compatible with cross-compilation
-  r = run_command('test', '-d', opencv_prefix + '/share/opencv')
+  r = run_command('test', '-d', pkgconf_sysroot + opencv_prefix + '/share/opencv')
   if r.returncode() == 0
     gstopencv_cargs += '-DOPENCV_PATH_NAME="opencv"'
   else
-    r = run_command('test', '-d', opencv_prefix + '/share/OpenCV')
+    r = run_command('test', '-d', pkgconf_sysroot + opencv_prefix + '/share/OpenCV')
     if r.returncode() == 0
       gstopencv_cargs += '-DOPENCV_PATH_NAME="OpenCV"'
     else
-      r = run_command('test', '-d', opencv_prefix + '/share/opencv4')
+      r = run_command('test', '-d', pkgconf_sysroot + opencv_prefix + '/share/opencv4')
       if r.returncode() == 0
         gstopencv_cargs += '-DOPENCV_PATH_NAME="opencv4"'
       else
