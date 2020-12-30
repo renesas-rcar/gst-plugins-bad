@@ -40,7 +40,9 @@ endif
 
 mfx_dep = dependency('libmfx', required: false)
 if mfx_dep.found()
+  pkgconf_sysroot = run_command(python3, '-c', 'import os; print(os.environ.get("PKG_CONFIG_SYSROOT_DIR"))').stdout().strip()
   mfx_incdir = mfx_dep.get_pkgconfig_variable('includedir')
+  mfx_incdir = pkgconf_sysroot +  mfx_incdir
   mfx_inc = []
 else
   # Old versions of MediaSDK don't provide a pkg-config file
