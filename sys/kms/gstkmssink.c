@@ -6,6 +6,8 @@
  *  Víctor Manuel Jáquez Leal <vjaquez@igalia.com>
  *  Javier Martin <javiermartin@by.com.es>
  *
+ * Copyright (C) 2021 Renesas Electronics Corporation
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -97,6 +99,9 @@ enum
   PROP_DISPLAY_HEIGHT,
   PROP_CONNECTOR_PROPS,
   PROP_PLANE_PROPS,
+#ifdef HAVE_MMNGR
+  PROP_WRITE_BACK,
+#endif
   PROP_N,
 };
 
@@ -810,6 +815,65 @@ retry_find_plane:
 
   ret = TRUE;
 
+#ifdef HAVE_MMNGR
+  if (self->write_back) {
+    gint32 mmngr_ret = R_MM_OK;
+    MMNGR_ID pid;
+    size_t screen_size;
+    unsigned int flag = MMNGR_VA_SUPPORT;
+    self->wb_buff.pid = -1;
+    self->wb_buff.puser_virt_addr = NULL;
+    self->wb_buff.record = NULL;
+    /* BGRA */
+    screen_size = (self->hdisplay * self->vdisplay * 4);
+
+    mmngr_ret = mmngr_alloc_in_user_ext (&self->wb_buff.pid, screen_size,
+        &self->wb_buff.phard_addr, &self->wb_buff.puser_virt_addr, flag, NULL);
+    if (R_MM_OK != mmngr_ret) {
+      GST_ERROR_OBJECT (self,
+          "Write-back: Cannot create mmngr buffer. error %d", mmngr_ret);
+    } else {
+      gint32 drm_ret = -1;
+#ifdef HAVE_RCAR_EXT
+      struct rcar_du_screen_shot screen_shot;
+      screen_shot.buff = self->wb_buff.phard_addr;
+      screen_shot.buff_len = screen_size;
+      screen_shot.crtc_id = self->crtc_id;
+      screen_shot.fmt = DRM_FORMAT_ARGB8888;
+      screen_shot.width = self->hdisplay;
+      screen_shot.height = self->vdisplay;
+      drm_ret = drmCommandWrite (self->fd, DRM_RCAR_DU_SCRSHOT, &screen_shot,
+          sizeof (struct rcar_du_screen_shot));
+#endif
+      if (drm_ret != 0) {
+        GST_ERROR_OBJECT (self,
+            "Write-back: drmCommandWrite error %d", drm_ret);
+        mmngr_ret = mmngr_free_in_user_ext (self->wb_buff.pid);
+        if (R_MM_OK != mmngr_ret) {
+          GST_ERROR_OBJECT (self,
+              "Write-back: Cannot free mmngr buffer. error %d", mmngr_ret);
+        } else
+          self->wb_buff.pid = -1;
+      } else {
+        self->wb_buff.record = fopen ("record.bin", "w+");
+        if (NULL == self->wb_buff.record) {
+          GST_ERROR_OBJECT (self, "Write-back: Cannot open record.bin");
+          mmngr_ret = mmngr_free_in_user_ext (self->wb_buff.pid);
+          if (R_MM_OK != mmngr_ret) {
+            GST_ERROR_OBJECT (self,
+                "Write-back: Cannot free mmngr buffer. error %d", mmngr_ret);
+          } else
+            self->wb_buff.pid = -1;
+        }
+        self->wb_buff.size = screen_size;
+        GST_INFO_OBJECT (self,
+            "Screen shot with resolution %dx%d, format: BGRA",
+            self->hdisplay, self->vdisplay);
+      }
+    }
+  }
+#endif
+
 bail:
   if (plane)
     drmModeFreePlane (plane);
@@ -946,6 +1010,27 @@ gst_kms_sink_stop (GstBaseSink * bsink)
 
   g_object_notify_by_pspec (G_OBJECT (self), g_properties[PROP_DISPLAY_WIDTH]);
   g_object_notify_by_pspec (G_OBJECT (self), g_properties[PROP_DISPLAY_HEIGHT]);
+
+#ifdef HAVE_MMNGR
+  if (self->write_back) {
+    if (self->wb_buff.pid != -1) {
+      gint32 mmngr_ret = R_MM_OK;
+      mmngr_ret = mmngr_free_in_user_ext (self->wb_buff.pid);
+      if (R_MM_OK != mmngr_ret) {
+        GST_ERROR_OBJECT (self,
+            "Write-back: Cannot free mmngr buffer. error %d", mmngr_ret);
+      }
+      if (self->wb_buff.record != NULL) {
+        gint32 ret = 0;
+        ret = fclose (self->wb_buff.record);
+        if (ret) {
+          GST_ERROR_OBJECT (self,
+              "Write-back: Close record.bin error %d, errno =%d", ret, errno);
+        }
+      }
+    }
+  }
+#endif
 
   return TRUE;
 }
@@ -1642,6 +1727,40 @@ sync_frame:
     GST_OBJECT_UNLOCK (self);
     goto bail;
   }
+#ifdef ENABLE_RECORDER          /* This option will record the display but may lack some last frames */
+#ifdef HAVE_MMNGR
+  if (self->write_back) {
+    gint32 drm_ret = -1;
+#ifdef HAVE_RCAR_EXT
+    struct rcar_du_screen_shot screen_shot;
+    screen_shot.buff = self->wb_buff.phard_addr;
+    screen_shot.buff_len = self->wb_buff.size;
+    screen_shot.crtc_id = self->crtc_id;
+    screen_shot.fmt = DRM_FORMAT_ARGB8888;
+    screen_shot.width = self->hdisplay;
+    screen_shot.height = self->vdisplay;
+    drm_ret = drmCommandWrite (self->fd, DRM_RCAR_DU_SCRSHOT, &screen_shot,
+        sizeof (struct rcar_du_screen_shot));
+#endif
+    if (drm_ret != 0) {
+      GST_ERROR_OBJECT (self, "Write-back: drmCommandWrite error %d", drm_ret);
+    } else {
+      gint32 posix_ret = -1;
+      posix_ret = fwrite ((void *) self->wb_buff.puser_virt_addr,
+          self->wb_buff.size, 1, self->wb_buff.record);
+      if (posix_ret <= 0) {
+        GST_ERROR_OBJECT (self,
+            "Write-back: fwrite to record.bin error %d", posix_ret);
+      }
+      posix_ret = fflush (self->wb_buff.record);
+      if (posix_ret <= 0) {
+        GST_ERROR_OBJECT (self,
+            "Write-back: fflush to record.bin error %d", posix_ret);
+      }
+    }
+  }
+#endif
+#endif
 
   if (buffer != self->last_buffer)
     gst_buffer_replace (&self->last_buffer, buffer);
@@ -1700,6 +1819,39 @@ gst_kms_sink_drain (GstKMSSink * self)
     gst_kms_sink_show_frame (GST_VIDEO_SINK (self), dumb_buf);
     gst_buffer_unref (dumb_buf);
   }
+#ifdef HAVE_MMNGR
+  if (self->write_back) {
+    gint32 drm_ret = -1;
+#ifdef HAVE_RCAR_EXT
+    struct rcar_du_screen_shot screen_shot;
+    screen_shot.buff = self->wb_buff.phard_addr;
+    screen_shot.buff_len = self->wb_buff.size;
+    screen_shot.crtc_id = self->crtc_id;
+    screen_shot.fmt = DRM_FORMAT_ARGB8888;
+    screen_shot.width = self->hdisplay;
+    screen_shot.height = self->vdisplay;
+    drm_ret = drmCommandWrite (self->fd, DRM_RCAR_DU_SCRSHOT, &screen_shot,
+        sizeof (struct rcar_du_screen_shot));
+#endif
+    if (drm_ret != 0) {
+      GST_ERROR_OBJECT (self, "Write-back: drmCommandWrite error %d", drm_ret);
+    } else {
+      gint32 posix_ret = -1;
+      posix_ret = fwrite ((void *) self->wb_buff.puser_virt_addr,
+          self->wb_buff.size, 1, self->wb_buff.record);
+      if (posix_ret <= 0) {
+        GST_ERROR_OBJECT (self,
+            "Write-back: fwrite to record.bin error %d", posix_ret);
+      }
+      posix_ret = fflush (self->wb_buff.record);
+      if (posix_ret <= 0) {
+        GST_ERROR_OBJECT (self,
+            "Write-back: fflush to record.bin error %d", posix_ret);
+      }
+    }
+  }
+#endif
+
 }
 
 static gboolean
@@ -1773,6 +1925,11 @@ gst_kms_sink_set_property (GObject * object, guint prop_id,
 
       break;
     }
+#ifdef HAVE_MMNGR
+    case PROP_WRITE_BACK:
+      sink->write_back = g_value_get_boolean (value);
+      break;
+#endif
     default:
       if (!gst_video_overlay_set_property (object, PROP_N, prop_id, value))
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1826,6 +1983,11 @@ gst_kms_sink_get_property (GObject * object, guint prop_id,
     case PROP_PLANE_PROPS:
       gst_value_set_structure (value, sink->plane_props);
       break;
+#ifdef HAVE_MMNGR
+    case PROP_WRITE_BACK:
+      g_value_set_boolean (value, sink->write_back);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2024,6 +2186,21 @@ gst_kms_sink_class_init (GstKMSSinkClass * klass)
       "Additionnal properties for the plane",
       GST_TYPE_STRUCTURE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+#ifdef HAVE_MMNGR
+  /**
+   * kmssink:write-back:
+   *
+   * Additional properties for rcar-du driver.
+   * It will capture screen and record into file: record.bin
+   * record.bin is a raw file which have format BGRA, size is refered from
+   * connector's resolution
+   *
+   */
+  g_properties[PROP_WRITE_BACK] =
+      g_param_spec_boolean ("write-back", "screen shot",
+      "When enabled, screen capture and record into ./record.bin ", FALSE,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT);
+#endif
   g_object_class_install_properties (gobject_class, PROP_N, g_properties);
 
   gst_video_overlay_install_properties (gobject_class, PROP_N);

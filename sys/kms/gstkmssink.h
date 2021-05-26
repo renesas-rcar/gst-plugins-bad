@@ -6,6 +6,8 @@
  *  Víctor Manuel Jáquez Leal <vjaquez@igalia.com>
  *  Javier Martin <javiermartin@by.com.es>
  *
+ * Copyright (C) 2021 Renesas Electronics Corporation
+ *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
  * License as published by the Free Software Foundation; either
@@ -27,6 +29,13 @@
 #define __GST_KMS_SINK_H__
 
 #include <gst/video/gstvideosink.h>
+#ifdef HAVE_MMNGR
+#include <stdio.h>
+#include "mmngr_user_public.h"
+#endif
+#ifdef HAVE_RCAR_EXT
+#include <drm/rcar_du_drm.h>
+#endif
 
 G_BEGIN_DECLS
 
@@ -43,6 +52,16 @@ G_BEGIN_DECLS
 
 typedef struct _GstKMSSink GstKMSSink;
 typedef struct _GstKMSSinkClass GstKMSSinkClass;
+
+#ifdef HAVE_MMNGR
+typedef struct writeback_buffer {
+  MMNGR_ID pid;
+  unsigned int phard_addr;
+  void *puser_virt_addr;
+  size_t size;
+  FILE *record;
+} wb_buffer;
+#endif
 
 struct _GstKMSSink {
   GstVideoSink videosink;
@@ -90,6 +109,11 @@ struct _GstKMSSink {
   /* reconfigure info if driver doesn't scale */
   GstVideoRectangle pending_rect;
   gboolean reconfigure;
+#ifdef HAVE_MMNGR
+  /*Support for rcar-du, sceenshot record */
+  gboolean write_back;
+  wb_buffer wb_buff;
+#endif
 };
 
 struct _GstKMSSinkClass {
