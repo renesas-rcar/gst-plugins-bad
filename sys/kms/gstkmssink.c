@@ -1753,7 +1753,7 @@ sync_frame:
             "Write-back: fwrite to record.bin error %d", posix_ret);
       }
       posix_ret = fflush (self->wb_buff.record);
-      if (posix_ret <= 0) {
+      if (posix_ret != 0) {
         GST_ERROR_OBJECT (self,
             "Write-back: fflush to record.bin error %d", posix_ret);
       }
@@ -1844,7 +1844,7 @@ gst_kms_sink_drain (GstKMSSink * self)
             "Write-back: fwrite to record.bin error %d", posix_ret);
       }
       posix_ret = fflush (self->wb_buff.record);
-      if (posix_ret <= 0) {
+      if (posix_ret != 0) {
         GST_ERROR_OBJECT (self,
             "Write-back: fflush to record.bin error %d", posix_ret);
       }
