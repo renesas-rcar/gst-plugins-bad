@@ -1211,9 +1211,6 @@ gst_kms_sink_set_caps (GstBaseSink * bsink, GstCaps * caps)
   if (!gst_video_info_from_caps (&vinfo, caps))
     goto invalid_format;
 
-  self->last_width = GST_VIDEO_SINK_WIDTH (self);
-  self->last_height = GST_VIDEO_SINK_HEIGHT (self);
-  self->last_vinfo = self->vinfo;
   self->vinfo = vinfo;
 
   if (!gst_kms_sink_calculate_display_ratio (self, &vinfo,
@@ -1797,8 +1794,13 @@ sync_frame:
 #endif
 #endif
 
-  if (buffer != self->last_buffer)
+  /* Save the rendered buffer and its metadata in case a redraw is needed */
+  if (buffer != self->last_buffer) {
     gst_buffer_replace (&self->last_buffer, buffer);
+    self->last_width = GST_VIDEO_SINK_WIDTH (self);
+    self->last_height = GST_VIDEO_SINK_HEIGHT (self);
+    self->last_vinfo = self->vinfo;
+  }
   g_clear_pointer (&self->tmp_kmsmem, gst_memory_unref);
 
   GST_OBJECT_UNLOCK (self);
